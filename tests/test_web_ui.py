@@ -6,9 +6,29 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
+ASSET_VERSION = "20260720-v2"
 
 
 class WebUiTest(unittest.TestCase):
+    def test_static_assets_are_cache_busted(self) -> None:
+        index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        stats_html = (ROOT / "web" / "stats.html").read_text(encoding="utf-8")
+        loader = (ROOT / "web" / "arena3d-loader.js").read_text(encoding="utf-8")
+
+        index_assets = (
+            "style.css",
+            "i18n.js",
+            "audio.js",
+            "sound.js",
+            "arena3d-loader.js",
+            "app.js",
+        )
+        for asset in index_assets:
+            self.assertIn(f"/static/{asset}?v={ASSET_VERSION}", index_html)
+        self.assertIn(f"/static/style.css?v={ASSET_VERSION}", stats_html)
+        self.assertIn(f"/static/stats.js?v={ASSET_VERSION}", stats_html)
+        self.assertIn(f"/static/arena3d.js?v={ASSET_VERSION}", loader)
+
     def test_home_page_has_search_and_social_metadata(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
 
@@ -87,8 +107,8 @@ class WebUiTest(unittest.TestCase):
         self.assertIn('id="arena-canvas"', html)
         self.assertLess(html.index('id="arena-canvas"'), html.index('id="seats"'))
         self.assertLess(
-            html.index('src="/static/arena3d-loader.js"'),
-            html.index('src="/static/app.js"'),
+            html.index(f'src="/static/arena3d-loader.js?v={ASSET_VERSION}"'),
+            html.index(f'src="/static/app.js?v={ASSET_VERSION}"'),
         )
         self.assertIn("3D arena unavailable; using the 2D fallback.", loader)
         self.assertIn(".arena-viz.webgl-ready #arena-canvas", css)
@@ -140,12 +160,12 @@ class WebUiTest(unittest.TestCase):
         self.assertIn('id="voice-gate"', html)
         self.assertIn('id="voice-unlock-btn"', html)
         self.assertLess(
-            html.index('src="/static/audio.js"'),
-            html.index('src="/static/sound.js"'),
+            html.index(f'src="/static/audio.js?v={ASSET_VERSION}"'),
+            html.index(f'src="/static/sound.js?v={ASSET_VERSION}"'),
         )
         self.assertLess(
-            html.index('src="/static/sound.js"'),
-            html.index('src="/static/app.js"'),
+            html.index(f'src="/static/sound.js?v={ASSET_VERSION}"'),
+            html.index(f'src="/static/app.js?v={ASSET_VERSION}"'),
         )
         self.assertIn(".sound-meter", css)
         self.assertIn("@keyframes sound-meter-pulse", css)
