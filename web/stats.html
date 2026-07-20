@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0a08" />
+  <title>Impostral — Player stats</title>
+  <meta name="description" content="Compare human and Mistral AI performance in Impostral games, including win rate, survival, and voting accuracy." />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <link rel="canonical" href="https://impostral.com/stats.html" />
+  <link rel="icon" type="image/png" sizes="1024x1024" href="/assets/logo.png" />
+  <link rel="apple-touch-icon" href="/assets/logo.png" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Impostral" />
+  <meta property="og:title" content="Impostral — Player stats" />
+  <meta property="og:description" content="Compare human and Mistral AI win rate, survival, and voting accuracy." />
+  <meta property="og:url" content="https://impostral.com/stats.html" />
+  <meta property="og:image" content="https://impostral.com/assets/logo.png" />
+  <meta property="og:image:alt" content="Impostral's masked cat mascot" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Impostral — Player stats" />
+  <meta name="twitter:description" content="Compare human and Mistral AI win rate, survival, and voting accuracy." />
+  <meta name="twitter:image" content="https://impostral.com/assets/logo.png" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    /* Metric series — the game's brand hues, validated for colorblind
+       separation. Every bar also carries a text label and a printed value. */
+    :root { --m-win: #ff8205; --m-survival: #ffd800; --m-accuracy: #e87ba4; }
+    body { overflow: auto; }
+
+    .stats-wrap { max-width: 1060px; }
+    .stats-head { flex-wrap: wrap; align-items: flex-end; margin-bottom: 22px; }
+    .stats-head .stats-title { display: flex; flex-direction: column; gap: 6px; }
+    .stats-head .stats-kicker {
+      color: var(--orange); font-family: var(--mono); font-size: 0.6rem;
+      letter-spacing: 0.28em; text-transform: uppercase;
+    }
+    .stats-head p.stats-sub {
+      margin: 0; max-width: 46ch; color: var(--muted);
+      font-size: 0.72rem; line-height: 1.5;
+    }
+
+    /* --- Hero KPI tiles --------------------------------------------------- */
+    .st-hero {
+      display: grid; gap: 12px; margin-bottom: 26px;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+    .st-tile {
+      position: relative; padding: 16px 16px 14px;
+      background: var(--panel); border: 1px solid var(--line-soft);
+      border-top: 2px solid var(--orange); overflow: hidden;
+    }
+    .st-tile::after {
+      content: ""; position: absolute; right: -1px; bottom: -1px;
+      width: 12px; height: 12px;
+      border-right: 2px solid var(--line); border-bottom: 2px solid var(--line);
+    }
+    .st-tile-num {
+      font-family: var(--display); font-size: 2.1rem; line-height: 1;
+      letter-spacing: 0.03em; color: var(--text); font-variant-numeric: tabular-nums;
+    }
+    .st-tile-lbl {
+      margin-top: 8px; color: var(--muted); font-size: 0.58rem;
+      letter-spacing: 0.16em; text-transform: uppercase;
+    }
+    .st-tile-sub {
+      margin-top: 3px; color: var(--orange-bright);
+      font-family: var(--mono); font-size: 0.62rem;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* --- Sections --------------------------------------------------------- */
+    .st-section { margin-top: 26px; }
+    .st-section-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 12px; padding-bottom: 10px; margin-bottom: 14px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .st-section-title {
+      margin: 0; color: var(--orange); font-size: 0.8rem;
+      letter-spacing: 0.2em; text-transform: uppercase;
+    }
+    .st-section-kicker {
+      color: var(--faint); font-family: var(--mono); font-size: 0.6rem;
+      letter-spacing: 0.14em; text-transform: uppercase;
+    }
+
+    /* --- Legend ----------------------------------------------------------- */
+    .st-legend {
+      display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 14px;
+      color: var(--muted); font-size: 0.66rem;
+    }
+    .st-legend-item { display: inline-flex; align-items: center; gap: 7px; }
+    .st-swatch { width: 12px; height: 12px; border-radius: 2px; }
+
+    /* --- Entity cards ----------------------------------------------------- */
+    .st-board { display: flex; flex-direction: column; gap: 12px; }
+    .st-card {
+      position: relative; padding: 15px 18px 17px;
+      background: var(--panel); border: 1px solid var(--line-soft);
+      border-left: 3px solid var(--faint);
+    }
+    .st-card.is-human {
+      border-left-color: var(--orange);
+      background:
+        linear-gradient(90deg, rgba(255, 130, 5, 0.09), rgba(255, 130, 5, 0) 40%),
+        var(--panel);
+    }
+    .st-card-head {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .st-rank {
+      flex: 0 0 auto; min-width: 40px; padding: 6px 0;
+      font-family: var(--mono); font-size: 0.78rem; font-weight: 700;
+      text-align: center; color: var(--muted);
+      background: rgba(244, 239, 230, 0.05); border: 1px solid var(--line-soft);
+      font-variant-numeric: tabular-nums;
+    }
+    .st-rank-human { color: var(--orange-bright); border-color: var(--line); }
+    .st-id { flex: 1 1 200px; min-width: 0; }
+    .st-name {
+      font-family: var(--mono); font-size: 0.92rem; font-weight: 700;
+      color: var(--text); word-break: break-word;
+    }
+    .st-card.is-human .st-name {
+      font-family: var(--display); font-size: 1.15rem; letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .st-id-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+    .st-kind {
+      padding: 2px 7px; color: var(--muted); font-size: 0.54rem;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      border: 1px solid var(--line-soft);
+    }
+    .st-kind-human { color: #180900; background: var(--orange); border-color: var(--orange); }
+    .st-appear { color: var(--faint); font-size: 0.64rem; font-variant-numeric: tabular-nums; }
+    .st-avg { flex: 0 0 auto; text-align: right; }
+    .st-avg-num {
+      display: block; font-family: var(--display); font-size: 1.3rem; line-height: 1;
+      color: var(--text); font-variant-numeric: tabular-nums;
+    }
+    .st-avg-lbl {
+      display: block; margin-top: 3px; color: var(--faint); font-size: 0.52rem;
+      letter-spacing: 0.12em; text-transform: uppercase;
+    }
+
+    /* --- Meters ----------------------------------------------------------- */
+    .st-meters { display: flex; flex-direction: column; gap: 8px; }
+    .st-meter {
+      display: grid; grid-template-columns: 96px 1fr 46px; align-items: center; gap: 12px;
+    }
+    .st-meter-label { color: var(--muted); font-size: 0.62rem; text-align: right; }
+    .st-track {
+      position: relative; height: 18px; overflow: visible;
+      background: rgba(244, 239, 230, 0.06);
+    }
+    .st-fill {
+      display: flex; align-items: center; justify-content: flex-end;
+      height: 100%; min-width: 3px; background: var(--c);
+      border-radius: 0 4px 4px 0; transition: width 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .st-val {
+      padding: 0 7px; color: #14100a; font-size: 0.62rem; font-weight: 800;
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+    .st-val-outside {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      color: var(--muted); padding: 0;
+    }
+    .st-meter-flag { min-width: 40px; }
+    .st-meter-flag.is-best {
+      display: inline-block; padding: 2px 6px; color: var(--gold);
+      font-family: var(--mono); font-size: 0.5rem; font-weight: 700;
+      letter-spacing: 0.12em; text-align: center;
+      border: 1px solid rgba(255, 216, 0, 0.4);
+    }
+    .st-note { margin: 4px 0 0; color: var(--faint); font-size: 0.68rem; }
+
+    /* --- Details table ---------------------------------------------------- */
+    .st-table-scroll { overflow-x: auto; border: 1px solid var(--line-soft); }
+    .st-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+    .st-table th, .st-table td {
+      padding: 9px 12px; text-align: right; white-space: nowrap;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .st-table thead th {
+      position: sticky; top: 0; color: var(--muted); font-size: 0.58rem;
+      font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+      background: var(--panel-strong);
+    }
+    .st-table th:first-child, .st-table td:first-child { text-align: left; }
+    .st-table tbody td { font-variant-numeric: tabular-nums; color: var(--text); }
+    .st-table .st-cell-name { color: var(--muted); font-family: var(--mono); }
+    .st-table tbody tr:last-child td { border-bottom: none; }
+    .st-table tbody tr.is-human td { background: rgba(255, 130, 5, 0.06); }
+    .st-table tbody tr.is-human .st-cell-name { color: var(--orange-bright); font-weight: 700; }
+
+    /* --- States & footer -------------------------------------------------- */
+    .st-empty {
+      padding: 48px 20px; text-align: center;
+      background: var(--panel); border: 1px solid var(--line-soft);
+    }
+    .st-empty-title {
+      color: var(--text); font-family: var(--display); font-size: 1.15rem;
+      letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .st-empty-body { margin: 10px auto 0; max-width: 40ch; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
+    .st-meta { margin: 18px 0 0; color: var(--faint); font-size: 0.66rem; line-height: 1.6; }
+
+    @media (max-width: 560px) {
+      .st-meter { grid-template-columns: 74px 1fr; }
+      .st-meter-flag, .st-meter-flag.is-best { display: none; }
+      .st-meter-label { font-size: 0.58rem; }
+      .st-avg { display: none; }
+      .st-card { padding: 14px 14px 15px; }
+      .st-tile-num { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hud-header">
+      <a class="brand" href="/" aria-label="Impostral — home">
+        <img src="/assets/impostral.png" alt="Impostral" />
+      </a>
+      <nav class="hud-nav">
+        <a href="/">Back to game</a>
+      </nav>
+    </header>
+
+    <main class="stats-main">
+      <div class="stats-wrap">
+        <div class="stats-head">
+          <div class="stats-title">
+            <span class="stats-kicker">Benchmark // humans vs Mistral</span>
+            <h1>Player stats</h1>
+            <p class="stats-sub">
+              How each Mistral model performs against the anonymous human
+              baseline across every recorded game.
+            </p>
+          </div>
+          <button class="btn" id="refresh" type="button"
+            style="min-height:36px; padding:0 16px; font-size:0.62rem;">Refresh</button>
+        </div>
+        <div id="content"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/stats.js" defer></script>
+</body>
+</html>

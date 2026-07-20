@@ -1,0 +1,10 @@
+.gcloudignore
+.git
+.gitignore
+.env
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+web_audio_cache/
+data/

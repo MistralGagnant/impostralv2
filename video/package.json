@@ -1,0 +1,29 @@
+{
+  "name": "impostral-demo",
+  "version": "1.0.0",
+  "description": "video demo d'impostral pour le hackathon",
+  "scripts": {
+    "dev": "remotion studio",
+    "render": "remotion render ImpostralDemo out/impostral.mp4",
+    "render:pitch": "remotion render ImpostralPitch out/impostral_pitch.mp4",
+    "render:suggestions": "remotion render Suggestions out/suggestions.mp4",
+    "render:end": "remotion render End out/end.mp4",
+    "render:diagram": "remotion still Diagram out/diagram.png --scale=2",
+    "cover": "remotion still ImpostralDemo out/cover.png --frame=60",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.490",
+    "@remotion/google-fonts": "4.0.490",
+    "@remotion/shapes": "4.0.490",
+    "@remotion/transitions": "^4.0.490",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.490"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "typescript": "5.8.3"
+  }
+}

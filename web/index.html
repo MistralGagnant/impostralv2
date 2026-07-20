@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0a08" />
+  <title>Impostral • Can you spot the AI?</title>
+  <meta name="description" content="Play a live social deduction game where humans and Mistral AI agents answer, bluff, and vote. Expose the AI before it fools the room." />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <link rel="preconnect" href="https://challenges.cloudflare.com" />
+  <link rel="canonical" href="https://impostral.com/" />
+  <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/assets/logo.png" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Impostral" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:title" content="Impostral • Can you spot the AI?" />
+  <meta property="og:description" content="Humans and Mistral AI agents share a room. Answer, bluff, vote, and expose the AI before it fools everyone." />
+  <meta property="og:url" content="https://impostral.com/" />
+  <meta property="og:image" content="https://impostral.com/assets/logo.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1024" />
+  <meta property="og:image:height" content="1024" />
+  <meta property="og:image:alt" content="Impostral's masked cat mascot" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Impostral • Can you spot the AI?" />
+  <meta name="twitter:description" content="Answer, bluff, vote, and expose the AI before it fools everyone." />
+  <meta name="twitter:image" content="https://impostral.com/assets/logo.png" />
+  <meta name="twitter:image:alt" content="Impostral's masked cat mascot" />
+
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://impostral.com/#website",
+          "url": "https://impostral.com/",
+          "name": "Impostral"
+        },
+        {
+          "@type": "VideoGame",
+          "@id": "https://impostral.com/#game",
+          "url": "https://impostral.com/",
+          "name": "Impostral",
+          "description": "A live social deduction game where humans hunt AI impostors.",
+          "image": "https://impostral.com/assets/logo.png",
+          "applicationCategory": "Game",
+          "operatingSystem": "Web browser",
+          "playMode": "MultiPlayer",
+          "isAccessibleForFree": true,
+          "inLanguage": "en"
+        }
+      ]
+    }
+  </script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body data-screen="join">
+  <div class="app-shell">
+    <header class="hud-header">
+      <a class="brand" href="/" aria-label="Impostral — home" data-i18n-aria-label="brand.home">
+        <img
+          src="/assets/impostral.png"
+          width="1410"
+          height="940"
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+          fetchpriority="high"
+          draggable="false"
+        />
+      </a>
+      <nav class="hud-nav">
+        <button
+          id="sound-toggle"
+          class="sound-toggle"
+          type="button"
+          aria-pressed="true"
+          aria-label="Mute music and sound effects"
+          data-i18n-aria-label="nav.sound_mute"
+        >
+          <span class="sound-meter" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </span>
+          <span id="sound-toggle-label" data-i18n="nav.sound">Music + FX</span>
+        </button>
+        <a href="/stats.html" data-i18n="nav.stats">Stats</a>
+      </nav>
+    </header>
+
+    <div id="voice-gate" class="voice-gate hidden" role="alert">
+      <span id="voice-gate-copy" data-i18n="voice.paused">Your browser paused the game voices.</span>
+      <button id="voice-unlock-btn" type="button" data-i18n="voice.enable">Enable voices</button>
+    </div>
+
+    <main>
+      <!-- Join screen -->
+      <section id="join-screen" class="join-screen">
+        <div class="landing-grid">
+          <div class="landing-copy">
+            <p class="landing-kicker" data-i18n="landing.kicker">Mistral is the player.</p>
+
+            <h1 data-i18n="landing.title">Could you spot the AI?</h1>
+
+            <p class="landing-lede" data-i18n="landing.lede">
+              Independent Mistral agents infiltrate a group of humans —
+              and try to survive by acting human.
+            </p>
+
+            <p class="landing-rule" data-i18n="landing.rule">One question. One sentence. One vote.</p>
+
+            <div class="join-console">
+              <div class="game-language">
+                <span id="game-language-label" data-i18n="landing.language">Game language</span>
+                <div class="language-switch" role="radiogroup" aria-labelledby="game-language-label">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked="true"
+                    aria-label="Play in English"
+                    data-i18n-aria-label="landing.language_en"
+                    data-game-language="en"
+                  ><b>EN</b><small>English</small></button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked="false"
+                    aria-label="Play in French"
+                    data-i18n-aria-label="landing.language_fr"
+                    data-game-language="fr"
+                  ><b>FR</b><small>Français</small></button>
+                </div>
+              </div>
+              <button id="play-btn" class="play-btn" type="button">
+                <span data-i18n="landing.enter">Enter a game</span>
+                <b aria-hidden="true">→</b>
+              </button>
+              <div id="turnstile-container" class="turnstile-container" aria-live="polite"></div>
+              <p id="join-hint" class="hint" aria-live="polite"></p>
+
+              <details id="advanced-options" class="advanced-options">
+                <summary data-i18n="landing.private">Play with friends in a private room</summary>
+                <div class="advanced-grid">
+                  <label class="codename-field">
+                    <span><span data-i18n="landing.codename">Codename</span> <small data-i18n="landing.codename_note">optional · private</small></span>
+                    <input id="name-input" type="text" placeholder="Leave blank to stay anonymous" data-i18n-placeholder="landing.codename_placeholder" autocomplete="off" />
+                  </label>
+                  <div class="mode-switch" role="tablist" aria-label="Lobby mode" data-i18n-aria-label="landing.mode">
+                    <button id="mode-create" type="button" role="tab" aria-selected="true" data-i18n="landing.create">Create lobby</button>
+                    <button id="mode-join" type="button" role="tab" aria-selected="false" data-i18n="landing.join">Join lobby</button>
+                  </div>
+                  <label>
+                    <span data-i18n="landing.lobby_name">Lobby name</span>
+                    <input id="room-input" type="text" value="lobby" autocomplete="off" />
+                  </label>
+                  <label id="humans-field">
+                    <span><span data-i18n="landing.humans">Human players</span> <small data-i18n="landing.including_you">including you</small></span>
+                    <input id="humans-input" type="number" min="1" max="8" step="1" value="3" autocomplete="off" />
+                  </label>
+                  <button id="join-btn" type="button"><span data-i18n="landing.create_enter">Create &amp; enter</span></button>
+                </div>
+              </details>
+            </div>
+
+            <p class="landing-note" data-i18n="landing.note">Free · anonymous · no download</p>
+          </div>
+
+          <div class="character-stage">
+            <div class="pixel-cloud pixel-cloud--one" aria-hidden="true"></div>
+            <div class="pixel-cloud pixel-cloud--two" aria-hidden="true"></div>
+
+            <div class="carousel-scene" aria-hidden="true">
+              <div class="character-carousel">
+                <figure style="--i: 0"><img src="/assets/characters/character_01.png" alt="" /></figure>
+                <figure style="--i: 1"><img src="/assets/characters/character_02.png" alt="" /></figure>
+                <figure style="--i: 2"><img src="/assets/characters/character_03.png" alt="" /></figure>
+                <figure style="--i: 3"><img src="/assets/characters/character_04.png" alt="" /></figure>
+                <figure style="--i: 4"><img src="/assets/characters/character_05.png" alt="" /></figure>
+                <figure style="--i: 5"><img src="/assets/characters/character_06.png" alt="" /></figure>
+                <figure style="--i: 6"><img src="/assets/characters/character_07.png" alt="" /></figure>
+                <figure style="--i: 7"><img src="/assets/characters/character_08.png" alt="" /></figure>
+                <figure style="--i: 8"><img src="/assets/characters/character_09.png" alt="" /></figure>
+                <figure style="--i: 9"><img src="/assets/characters/character_10.png" alt="" /></figure>
+              </div>
+              <div class="carousel-floor"></div>
+            </div>
+
+            <p class="stage-caption" data-i18n="landing.caption">Who would you vote for?</p>
+          </div>
+        </div>
+
+        <footer class="hackathon-credit">
+          <span data-i18n="landing.award">3rd place · Mistral Vibe Hackathon 2026</span>
+          <a href="https://github.com/MistralGagnant/impostral" target="_blank" rel="noopener noreferrer" data-i18n="landing.source">Open source ↗</a>
+        </footer>
+      </section>
+
+      <!-- Game screen -->
+      <section id="game-screen" class="game-screen hidden">
+        <div class="game-layout">
+          <aside class="mission-panel tactical-panel" aria-label="Round status" data-i18n-aria-label="hud.round_status">
+            <div class="metric-row">
+              <span data-i18n="hud.round">Round</span>
+              <strong><b id="round-current">0</b><small> / <i id="round-total">5</i></small></strong>
+            </div>
+            <div class="metric-row">
+              <span data-i18n="hud.players">Players</span>
+              <strong><b id="players-alive">0</b><small> / <i id="players-total">0</i></small></strong>
+            </div>
+            <div class="metric-row">
+              <span data-i18n="hud.time">Time</span>
+              <strong><span id="phase-timer">—</span><small> s</small></strong>
+            </div>
+            <div class="metric-row">
+              <span data-i18n="hud.phase">Phase</span>
+              <span id="phase-name">Lobby</span>
+            </div>
+            <p class="feed-label" data-i18n="hud.feed">Live feed</p>
+            <div id="transcript" aria-live="polite">
+              <p class="transcript-empty" data-i18n="hud.feed_empty">Anonymous channel ready.</p>
+            </div>
+          </aside>
+
+          <section class="arena-shell" aria-label="Game arena" data-i18n-aria-label="arena.label">
+            <div class="arena-viz">
+              <canvas id="arena-canvas" aria-hidden="true"></canvas>
+              <div id="arena-labels" class="arena-labels" aria-hidden="true"></div>
+              <div class="arena-vignette" aria-hidden="true"></div>
+              <div id="seats" aria-label="Players" data-i18n-aria-label="arena.players"></div>
+              <div class="question-frame">
+                <span id="turn-status" class="question-label" aria-live="polite" data-i18n="arena.live_prompt">Live prompt</span>
+                <p id="phase-prompt" class="prompt" data-i18n="arena.waiting">Waiting for players…</p>
+              </div>
+            </div>
+
+            <!-- Contextual answer input -->
+            <div id="input-panel" class="hidden">
+              <div class="input-header">
+                <span data-i18n="input.action">Your action</span>
+                <div id="input-timer" class="input-timer"></div>
+              </div>
+              <div id="input-controls"></div>
+            </div>
+          </section>
+
+          <!-- Deliberately absent until the server requests a vote. -->
+          <aside id="vote-panel" class="vote-panel tactical-panel hidden" aria-label="Vote" data-i18n-aria-label="vote.label">
+            <div class="vote-heading">
+              <span data-i18n="vote.label">Vote</span>
+              <p data-i18n="vote.help">Vote out the player you think is an AI. Most voted is eliminated.</p>
+            </div>
+            <div id="vote-options" class="vote-options" role="radiogroup" aria-label="Players" data-i18n-aria-label="arena.players"></div>
+            <button id="submit-vote" type="button" disabled data-i18n="vote.submit">Submit vote</button>
+          </aside>
+        </div>
+
+        <section
+          id="result-overlay"
+          class="result-overlay hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="result-title"
+          aria-describedby="result-summary"
+          aria-label="Final game result"
+          data-i18n-aria-label="result.dialog"
+          tabindex="-1"
+        >
+          <div class="result-pixels" aria-hidden="true"></div>
+          <div class="result-panel">
+            <header class="result-header">
+              <div class="result-verdict">
+                <span class="result-signal" data-i18n="result.signal">Final decode</span>
+                <strong id="result-outcome">Result</strong>
+              </div>
+              <div class="result-copy">
+                <h2 id="result-title">The hunt is over</h2>
+                <p id="result-summary" aria-live="polite"></p>
+                <p id="result-reason"></p>
+                <span id="result-your-role" class="result-your-role"></span>
+              </div>
+            </header>
+
+            <div class="result-roster-head">
+              <strong data-i18n="result.identities">Identity reveal</strong>
+              <span data-i18n="result.decoded">All roles decoded</span>
+            </div>
+            <div id="result-roster" class="result-roster"></div>
+
+            <footer class="result-actions">
+              <button id="result-replay" class="result-replay" type="button" data-i18n="result.play_again">Play again</button>
+              <button id="result-menu" class="result-menu" type="button" data-i18n="result.back_menu">Back to menu</button>
+            </footer>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/i18n.js"></script>
+  <script src="/static/audio.js"></script>
+  <script src="/static/sound.js"></script>
+  <script src="/static/arena3d-loader.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
