@@ -1,8 +1,12 @@
 """Curated question cards for the Impostral deduction loop.
 
 The deck follows a compact dramatic arc. Early cards ask for an immediate
-trace; later cards ask for a quirk, a choice, a memory, then an alibi. The arc
-is compressed to the number of rounds the current room can actually play.
+trace; later cards ask for a quirk, a choice, a memory, an intrusive personal
+fact, then an alibi. The arc is compressed to the number of rounds the current
+room can actually play.
+
+Each round draws from its act plus one adjacent act, so the pool is wide enough
+that consecutive games do not replay the same prompts.
 """
 from __future__ import annotations
 
@@ -50,7 +54,7 @@ class QuestionCard:
         return self.localized(locale).mock_answers
 
 
-ACTS = ("TRACE", "TELL", "FRICTION", "ECHO", "ALIBI")
+ACTS = ("TRACE", "TELL", "FRICTION", "ECHO", "INTRUSION", "ALIBI")
 
 
 def playable_rounds(seat_count: int, round_cap: int) -> int:
@@ -371,6 +375,80 @@ QUESTIONS: tuple[QuestionCard, ...] = (
         "Diesel takes me to a ferry deck.",
         "Cut grass means my grandparents' garden.",
         "Bleach takes me to the public pool.",
+    ),
+
+    # INTRUSION — questions that are frankly too personal to ask a stranger.
+    _card(
+        "intrusion_salary_expectation",
+        "What salary would you ask for in your next job?",
+        "INTRUSION", "confession", "salary",
+        "Enough to stop checking my bank app.",
+        "About ten percent more than now.",
+        "Whatever they offer first, honestly.",
+        "I always say a number, then regret it.",
+    ),
+    _card(
+        "intrusion_occupation",
+        "So what do you actually do in life?",
+        "INTRUSION", "confession", "job",
+        "I move files from one folder to another.",
+        "Mostly meetings, occasionally actual work.",
+        "I work in a badly lit lab.",
+        "I answer emails and pretend to plan.",
+    ),
+    _card(
+        "intrusion_salary",
+        "Roughly what do you earn, in your own currency?",
+        "INTRUSION", "confession", "salary",
+        "Barely enough for my rent, honestly.",
+        "Around two thousand a month, after tax.",
+        "Less than my flatmate, more than last year.",
+        "I would rather show you my rent.",
+    ),
+    _card(
+        "intrusion_job",
+        "What is your job, exactly?",
+        "INTRUSION", "confession", "job",
+        "I fix things other people broke.",
+        "Officially an assistant, actually everything.",
+        "I teach teenagers who do not listen.",
+        "Something with spreadsheets and apologies.",
+    ),
+    _card(
+        "intrusion_passion",
+        "Which passion eats the most of your time?",
+        "INTRUSION", "confession", "passion",
+        "Bread, I bake far too much of it.",
+        "Climbing, my hands are always wrecked.",
+        "Playing bass badly, late at night.",
+        "Restoring an old bike I never ride.",
+    ),
+    _card(
+        "intrusion_best_holiday",
+        "Where did you spend your best holiday?",
+        "INTRUSION", "confession", "holiday",
+        "A cold beach in Brittany, in October.",
+        "My uncle's farm, with no signal at all.",
+        "A tiny island where the ferry broke down.",
+        "Lisbon, sleeping on a very hard floor.",
+    ),
+    _card(
+        "intrusion_pride",
+        "Are you proud of yourself, and why?",
+        "INTRUSION", "confession", "pride",
+        "Yes, I finally learned to say no.",
+        "Not really, but I am still trying.",
+        "Today yes, I got out of bed early.",
+        "Proud of my patience, nothing else.",
+    ),
+    _card(
+        "intrusion_worst_pain",
+        "What is the worst pain you have ever felt?",
+        "INTRUSION", "confession", "pain",
+        "A broken wrist at eleven years old.",
+        "An infected tooth on a Sunday night.",
+        "Losing my dog, sincerely.",
+        "A kidney stone, I saw colours.",
     ),
 
     # ALIBI — an ordinary truth that has to survive suspicion.
@@ -746,6 +824,80 @@ FRENCH_QUESTION_COPY: dict[str, LocalizedQuestion] = {
         ),
     ),
 
+    # INTRUSION
+    "intrusion_salary_expectation": LocalizedQuestion(
+        "Quelles sont tes prétentions salariales pour un prochain emploi ?",
+        (
+            "De quoi arrêter de surveiller mon compte.",
+            "Environ dix pour cent de plus qu’aujourd’hui.",
+            "Ce qu’on me proposera en premier, honnêtement.",
+            "J’annonce toujours un chiffre, puis je le regrette.",
+        ),
+    ),
+    "intrusion_occupation": LocalizedQuestion(
+        "Tu fais quoi dans la vie ?",
+        (
+            "Je déplace des fichiers d’un dossier à l’autre.",
+            "Surtout des réunions, parfois du vrai travail.",
+            "Je travaille dans un labo mal éclairé.",
+            "Je réponds à des mails en faisant semblant de planifier.",
+        ),
+    ),
+    "intrusion_salary": LocalizedQuestion(
+        "Quel est ton salaire approximatif dans la monnaie de ton pays ?",
+        (
+            "À peine de quoi payer mon loyer.",
+            "Environ deux mille euros par mois, après impôts.",
+            "Moins que mon coloc, plus que l’an dernier.",
+            "Je préfère te montrer mon loyer.",
+        ),
+    ),
+    "intrusion_job": LocalizedQuestion(
+        "Quel est ton métier ?",
+        (
+            "Je répare ce que les autres cassent.",
+            "Assistant sur le papier, tout le reste en vrai.",
+            "J’enseigne à des ados qui n’écoutent rien.",
+            "Un truc avec des tableurs et des excuses.",
+        ),
+    ),
+    "intrusion_passion": LocalizedQuestion(
+        "Quelle est ta passion la plus chronophage ?",
+        (
+            "Le pain, j’en fais beaucoup trop.",
+            "L’escalade, j’ai les mains en miettes.",
+            "Jouer de la basse très mal, la nuit.",
+            "Restaurer un vieux vélo dont je ne me sers jamais.",
+        ),
+    ),
+    "intrusion_best_holiday": LocalizedQuestion(
+        "Dans quel endroit as-tu passé tes meilleures vacances ?",
+        (
+            "Une plage froide en Bretagne, en octobre.",
+            "La ferme de mon oncle, sans aucun réseau.",
+            "Une petite île où le ferry est tombé en panne.",
+            "Lisbonne, à dormir sur un sol très dur.",
+        ),
+    ),
+    "intrusion_pride": LocalizedQuestion(
+        "Es-tu fier de toi et pourquoi ?",
+        (
+            "Oui, j’ai enfin appris à dire non.",
+            "Pas vraiment, mais j’essaie encore.",
+            "Aujourd’hui oui, je me suis levé tôt.",
+            "Fier de ma patience, rien d’autre.",
+        ),
+    ),
+    "intrusion_worst_pain": LocalizedQuestion(
+        "Quelle a été ta pire douleur ?",
+        (
+            "Un poignet cassé à onze ans.",
+            "Une dent infectée un dimanche soir.",
+            "Perdre mon chien, sincèrement.",
+            "Une colique néphrétique, j’ai vu des couleurs.",
+        ),
+    ),
+
     # ALIBI
     "alibi_fabricated": LocalizedQuestion(
         "Quel détail vrai de ta journée semble complètement inventé ?",
@@ -861,15 +1013,30 @@ def act_for_round(round_no: int, total_rounds: int) -> str:
     current = min(max(1, int(round_no)), total)
     schedules = {
         1: (0,),
-        2: (0, 4),
-        3: (0, 2, 4),
-        4: (0, 1, 3, 4),
-        5: (0, 1, 2, 3, 4),
+        2: (0, 5),
+        3: (0, 2, 5),
+        4: (0, 2, 3, 5),
+        5: (0, 1, 2, 4, 5),
+        6: (0, 1, 2, 3, 4, 5),
     }
     if total <= len(ACTS):
         return ACTS[schedules[total][current - 1]]
     position = round((current - 1) * (len(ACTS) - 1) / (total - 1))
     return ACTS[position]
+
+
+def act_window(act: str) -> tuple[str, ...]:
+    """Return the round's act plus the one adjacent act it may borrow from.
+
+    Drawing from a single act leaves only eight cards per round, so the same
+    prompts resurface across games. Pairing each act with its neighbour doubles
+    the pool and keeps every act reachable, while the arc still moves forward.
+    """
+    index = ACTS.index(act)
+    companion = index + 1 if index + 1 < len(ACTS) else index - 1
+    if companion < 0:
+        return (act,)
+    return (act, ACTS[companion])
 
 
 def pick_question(
@@ -878,7 +1045,11 @@ def pick_question(
     round_no: int = 1,
     total_rounds: int = 5,
 ) -> QuestionCard:
-    """Pick a stage-safe card without repeating its prompt or semantic family."""
+    """Pick a stage-safe card without repeating its prompt or semantic family.
+
+    The draw prefers the round's two-act window, then widens to the whole deck
+    rather than replaying a card the room has already heard.
+    """
     excluded = exclude or set()
     act = act_for_round(round_no, total_rounds)
     used_cards = {
@@ -887,21 +1058,27 @@ def pick_question(
         if (card := _BY_ID.get(key) or _BY_PROMPT.get(key)) is not None
     }
     used_families = {card.similarity_key for card in used_cards}
-    act_cards = [card for card in QUESTIONS if card.act == act]
-    pool = [
-        card
-        for card in act_cards
-        if card.id not in excluded
-        and card.prompt not in excluded
-        and card.similarity_key not in used_families
-    ]
-    if not pool:
-        pool = [
+    window = act_window(act)
+    window_cards = [card for card in QUESTIONS if card.act in window]
+
+    def unused(cards: list[QuestionCard] | tuple[QuestionCard, ...]) -> list[QuestionCard]:
+        return [
             card
-            for card in act_cards
+            for card in cards
             if card.id not in excluded and card.prompt not in excluded
         ]
-    return random.choice(pool or act_cards)
+
+    def fresh(cards: list[QuestionCard] | tuple[QuestionCard, ...]) -> list[QuestionCard]:
+        return [
+            card
+            for card in unused(cards)
+            if card.similarity_key not in used_families
+        ]
+
+    for pool in (fresh(window_cards), fresh(QUESTIONS), unused(QUESTIONS)):
+        if pool:
+            return random.choice(pool)
+    return random.choice(QUESTIONS)
 
 
 def mock_answers_for(

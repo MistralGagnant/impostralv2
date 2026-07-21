@@ -155,6 +155,7 @@ class Room:
     # ------------------------------------------------------------------
     def setup_seats(self) -> None:
         """Create human and LLM seats, then assign voices and personas."""
+        from .agents.llm_agent import PERSONA_COUNT
         from .audio import voices as voices_mod
 
         settings = get_settings()
@@ -179,7 +180,7 @@ class Room:
         random.shuffle(model_order)
         persona_pool: list[int] = []
         while len(persona_pool) < self.num_llms:
-            block = list(range(5))
+            block = list(range(PERSONA_COUNT))
             random.shuffle(block)
             persona_pool.extend(block)
         persona_order = persona_pool[:self.num_llms]
@@ -207,6 +208,7 @@ class Room:
                         model=model if provider_id == "mistral" else None,
                         language=self.language,
                         seed=secrets.randbits(128),
+                        answer_variant=agent_index,
                     ),
                 )
                 if self.language not in seat.agent.identity.supported_languages:

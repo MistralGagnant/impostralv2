@@ -26,12 +26,18 @@ class AgentBuildSpec:
     model: str | None = None
     language: str = "en"
     seed: int | str | bytes | None = None
+    # Rank of this agent among the room's agents, so scripted demo answers can
+    # be rotated per seat instead of per persona. `None` leaves it to the
+    # provider.
+    answer_variant: int | None = None
 
     def __post_init__(self) -> None:
         if not self.seat_id.strip():
             raise ValueError("seat_id must not be empty")
         if self.persona_idx < 0:
             raise ValueError("persona_idx must not be negative")
+        if self.answer_variant is not None and self.answer_variant < 0:
+            raise ValueError("answer_variant must not be negative")
         object.__setattr__(self, "language", normalize_language(self.language))
 
 
@@ -95,6 +101,7 @@ def _mistral_factory(spec: AgentBuildSpec) -> GameAgent:
         model=spec.model,
         seed=spec.seed,
         language=spec.language,
+        answer_variant=spec.answer_variant,
     )
 
 

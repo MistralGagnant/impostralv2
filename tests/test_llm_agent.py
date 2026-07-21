@@ -20,6 +20,7 @@ from app.agents.llm_agent import (  # noqa: E402
     _PUBLIC_RESPONSE_SCHEMA,
     LLMAgent,
     MAX_PUBLIC_CHARS,
+    PERSONA_COUNT,
     PERSONAS,
     _one_short_sentence,
     _vote_schema,
@@ -85,6 +86,21 @@ class SortieAgentTest(unittest.TestCase):
         self.assertLessEqual(len(output), MAX_PUBLIC_CHARS)
         self.assertTrue(output.endswith("…"))
 
+    def test_la_persona_flemmarde_repond_en_un_ou_deux_mots(self) -> None:
+        slacker = next(
+            index
+            for index, persona in enumerate(PERSONAS)
+            if persona["nom"] == "The Slacker"
+        )
+        for key in ("exemples", "exemples_fr"):
+            for _, response in PERSONAS[slacker][key]:
+                with self.subTest(response=response):
+                    self.assertLessEqual(len(response.split()), 3)
+        self.assertIn(
+            "fewest words",
+            LLMAgent("Player A", slacker)._system(),
+        )
+
     def test_chaque_persona_possede_des_exemples_humains_courts(self) -> None:
         for persona in PERSONAS:
             with self.subTest(persona=persona["nom"]):
@@ -105,11 +121,101 @@ class SortieAgentTest(unittest.TestCase):
         self.assertNotIn("Ask Player B instead", prompt)
         self.assertIn("Never use hyphens", prompt)
 
-    def test_mock_answers_are_on_topic_and_distinct_between_personas(self) -> None:
+    def test_une_licence_ne_fuit_pas_vers_les_autres_personas(self) -> None:
+        licenced = [
+            index
+            for index, persona in enumerate(PERSONAS)
+            if persona.get("licence")
+        ]
+        self.assertEqual(
+            [PERSONAS[index]["nom"] for index in licenced],
+            ["The Troll", "The Slacker"],
+        )
+        for index in licenced:
+            licence = PERSONAS[index]["licence"]
+            for language in ("en", "fr"):
+                with self.subTest(persona=PERSONAS[index]["nom"], language=language):
+                    self.assertIn(
+                        licence,
+                        LLMAgent("Player A", index)._system(language),
+                    )
+                    for other in range(PERSONA_COUNT):
+                        if other == index:
+                            continue
+                        self.assertNotIn(
+                            licence,
+                            LLMAgent("Player A", other)._system(language),
+                        )
+
+    def test_la_consigne_de_tour_est_une_suggestion_partagee(self) -> None:
+        banned = ("do not accuse", "n'accuse personne", "ne parle pas de stratégie")
+        for language in ("en", "fr"):
+            with self.subTest(language=language):
+                tasks = {
+                    LLMAgent("Player A", index)._answer_task(language)
+                    for index in range(PERSONA_COUNT)
+                }
+                # No persona needs a derogation from a suggestion.
+                self.assertEqual(len(tasks), 1)
+                task = tasks.pop()
+                for fragment in banned:
+                    self.assertNotIn(fragment, task.lower())
+
+    def test_la_consigne_de_tour_ouvre_sur_la_reaction_a_la_table(self) -> None:
+        english = LLMAgent("Player A", 0)._answer_task("en").lower()
+        french = LLMAgent("Player A", 0)._answer_task("fr").lower()
+        self.assertIn("claimed to be human", english)
+        self.assertIn("called for a vote", english)
+        self.assertIn("déclarer humain", french)
+        self.assertIn("appeler à voter", french)
+
+    def test_le_bulletin_interdit_de_viser_un_humain(self) -> None:
+        agent = LLMAgent("Player A", 0)
+        for language, expected in (
+            ("en", ("never a seat you believe is human", "loses you the game")),
+            ("fr", ("jamais un siège que tu crois humain", "perdre la partie")),
+        ):
+            with self.subTest(language=language):
+                task = agent._vote_task(language)
+                for fragment in expected:
+                    self.assertIn(fragment, task)
+        # The ballot instruction is shared, unlike the answer suggestion it is
+        # not softened for any persona.
+        self.assertEqual(
+            len({
+                LLMAgent("Player A", index)._vote_task("fr")
+                for index in range(PERSONA_COUNT)
+            }),
+            1,
+        )
+
+    def test_le_systeme_protege_les_sieges_qui_se_revelent(self) -> None:
+        prompt = LLMAgent("Player A", 0)._system()
+        self.assertIn("eliminating a human", prompt)
+        self.assertIn("shouts that it is human", prompt)
+        self.assertIn("protect it", prompt)
+        self.assertNotIn("decrease your score", prompt)
+
+    def test_le_prompt_reste_intact_sans_licence(self) -> None:
+        prompt = LLMAgent("Player A", 0)._system()
+        self.assertNotIn("\n\n\n", prompt)
+        self.assertIn(
+            "Read what actually happened before choosing.\n\nHuman response examples",
+            prompt,
+        )
+
+    def test_le_tirage_des_personas_peut_atteindre_le_troll(self) -> None:
+        self.assertEqual(PERSONA_COUNT, len(PERSONAS))
+        self.assertEqual(
+            {LLMAgent("Player A", index).persona["nom"] for index in range(PERSONA_COUNT)},
+            {persona["nom"] for persona in PERSONAS},
+        )
+
+    def test_mock_answers_are_on_topic_and_distinct_between_seats(self) -> None:
         question = "What did you drink most recently?"
         answers = [
-            LLMAgent("Player Z", persona_idx)._mock_answer(question)
-            for persona_idx in range(4)
+            LLMAgent("Player Z", 0, answer_variant=variant)._mock_answer(question)
+            for variant in range(4)
         ]
         first = answers[0]
 
@@ -125,10 +231,26 @@ class SortieAgentTest(unittest.TestCase):
         for card in QUESTIONS:
             with self.subTest(card=card.id):
                 card_answers = {
-                    LLMAgent("Any seat", persona_idx)._mock_answer(card.prompt)
-                    for persona_idx in range(4)
+                    LLMAgent(
+                        "Any seat",
+                        # Four seats sharing one persona must still differ.
+                        persona_idx=0,
+                        answer_variant=variant,
+                    )._mock_answer(card.prompt)
+                    for variant in range(4)
                 }
                 self.assertEqual(len(card_answers), 4)
+
+    def test_le_choix_scripte_suit_le_siege_et_non_la_persona(self) -> None:
+        question = "What did you drink most recently?"
+        same_seat_rank = {
+            LLMAgent("Any seat", persona_idx, answer_variant=1)._mock_answer(question)
+            for persona_idx in range(PERSONA_COUNT)
+        }
+        self.assertEqual(len(same_seat_rank), 1)
+
+        # Standalone construction keeps the historical persona rotation.
+        self.assertEqual(LLMAgent("Any seat", 3).answer_variant, 3)
 
     def test_le_vote_est_limite_aux_cibles_eligibles(self) -> None:
         targets = ["Player B", "Player C"]

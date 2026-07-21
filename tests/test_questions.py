@@ -14,8 +14,9 @@ class QuestionDirectorTest(unittest.TestCase):
             1: ["TRACE"],
             2: ["TRACE", "ALIBI"],
             3: ["TRACE", "FRICTION", "ALIBI"],
-            4: ["TRACE", "TELL", "ECHO", "ALIBI"],
-            5: ["TRACE", "TELL", "FRICTION", "ECHO", "ALIBI"],
+            4: ["TRACE", "FRICTION", "ECHO", "ALIBI"],
+            5: ["TRACE", "TELL", "FRICTION", "INTRUSION", "ALIBI"],
+            6: ["TRACE", "TELL", "FRICTION", "ECHO", "INTRUSION", "ALIBI"],
         }
         for total, acts in expected.items():
             with self.subTest(total=total):
@@ -28,7 +29,7 @@ class QuestionDirectorTest(unittest.TestCase):
                 )
 
     def test_every_act_has_a_replayable_safe_pool(self) -> None:
-        self.assertEqual(len(questions.QUESTIONS), 40)
+        self.assertEqual(len(questions.QUESTIONS), 48)
         self.assertEqual(
             len({card.id for card in questions.QUESTIONS}),
             len(questions.QUESTIONS),
@@ -64,12 +65,13 @@ class QuestionDirectorTest(unittest.TestCase):
                     self.assertNotIn("Player B", answer)
                     self.assertNotIn("Player C", answer)
 
-    def test_picker_stays_in_act_and_excludes_a_used_card(self) -> None:
+    def test_picker_stays_in_the_act_window_and_excludes_a_used_card(self) -> None:
         used = next(card for card in questions.QUESTIONS if card.act == "TRACE")
+        window = questions.act_window("TRACE")
         remaining = [
             card
             for card in questions.QUESTIONS
-            if card.act == "TRACE" and card.id != used.id
+            if card.act in window and card.id != used.id
         ]
         with patch("app.game.questions.random.choice", side_effect=lambda pool: pool[0]):
             selected = questions.pick_question(
@@ -78,9 +80,57 @@ class QuestionDirectorTest(unittest.TestCase):
                 total_rounds=4,
             )
 
-        self.assertEqual(selected.act, "TRACE")
+        self.assertIn(selected.act, window)
         self.assertNotEqual(selected.id, used.id)
         self.assertIn(selected, remaining)
+
+    def test_every_act_pairs_with_an_adjacent_act(self) -> None:
+        expected = {
+            "TRACE": ("TRACE", "TELL"),
+            "TELL": ("TELL", "FRICTION"),
+            "FRICTION": ("FRICTION", "ECHO"),
+            "ECHO": ("ECHO", "INTRUSION"),
+            "INTRUSION": ("INTRUSION", "ALIBI"),
+            "ALIBI": ("ALIBI", "INTRUSION"),
+        }
+        self.assertEqual(
+            {act: questions.act_window(act) for act in questions.ACTS},
+            expected,
+        )
+
+    def test_a_room_can_reach_every_act_including_friction(self) -> None:
+        total = questions.playable_rounds(6, 5)
+        reachable = {
+            act
+            for round_no in range(1, total + 1)
+            for act in questions.act_window(
+                questions.act_for_round(round_no, total)
+            )
+        }
+        self.assertEqual(reachable, set(questions.ACTS))
+
+    def test_picker_widens_to_the_whole_deck_before_repeating_a_card(self) -> None:
+        window = questions.act_window(questions.act_for_round(1, 4))
+        exhausted = {
+            card.id for card in questions.QUESTIONS if card.act in window
+        }
+        captured: list = []
+
+        def choose(pool):
+            captured.extend(pool)
+            return pool[0]
+
+        with patch("app.game.questions.random.choice", side_effect=choose):
+            selected = questions.pick_question(
+                exhausted,
+                round_no=1,
+                total_rounds=4,
+            )
+
+        self.assertNotIn(selected.act, window)
+        self.assertNotIn(selected.id, exhausted)
+        self.assertTrue(captured)
+        self.assertFalse({card.id for card in captured} & exhausted)
 
     def test_picker_excludes_the_used_semantic_family(self) -> None:
         used = next(card for card in questions.QUESTIONS if card.id == "tell_chore")

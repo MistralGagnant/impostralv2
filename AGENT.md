@@ -108,12 +108,19 @@ outcome-specific score through `ImpostralSound.playResult()`.
 The default room has three humans and three agents, using Large, Medium, and
 Small respectively. Agents also use different personas, temperatures, and
 persona-specific human few-shot examples from `PERSONAS` in
-`app/agents/llm_agent.py`. Guided decoding enforces a strict JSON Schema with
+`app/agents/llm_agent.py`. Personas are drawn without repetition inside a room.
+A persona may carry a `licence` that relaxes the shared answer rules for itself;
+only **The Troll** does, so it may joke, answer off topic, claim to be the human
+of the table, and mistype on purpose. Guided decoding enforces a strict JSON Schema with
 private `thinking` and one public `output` utterance of at most 100 characters,
 preferably one short sentence. Round answers must address the exact personal
-question with a concrete detail; accusation and competitive strategy belong to
-the separate vote step. Only `output` enters the transcript. Mock-mode agents
-use card-specific scripted answers instead of unrelated persona examples.
+question with a concrete detail, but that is a suggestion: a seat that has just
+claimed to be human or called for a vote may be answered instead of the card.
+The ballot itself stays imperative — an agent must vote for the least convincing
+competing AI and never for a seat it believes is human. Only `output` enters the transcript. Mock-mode agents
+use card-specific scripted answers instead of unrelated persona examples,
+rotated on the seat's rank among the room's agents through
+`AgentBuildSpec.answer_variant` so that two seats never read the same line.
 
 ## Model performance tracking
 

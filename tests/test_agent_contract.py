@@ -187,6 +187,69 @@ class AgentContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(create.call_args.args[0], "community")
         self.assertEqual(create.call_args.args[1].language, "fr")
 
+    def test_room_composition_can_assign_every_persona(self) -> None:
+        from app.agents.llm_agent import PERSONA_COUNT
+
+        room = Room(
+            id="persona-coverage-room",
+            language="en",
+            num_humans=0,
+            num_llms=PERSONA_COUNT,
+        )
+        settings = type("Settings", (), {
+            "agent_models": ["unused-mistral-model"],
+        })()
+
+        def build(provider_id: str, spec) -> LLMAgent:
+            return LLMAgent(spec.seat_id, spec.persona_idx, language=spec.language)
+
+        with (
+            patch("app.rooms.get_settings", return_value=settings),
+            patch("app.audio.voices.get_pool", return_value=["voice"]),
+            patch("app.rooms.create_agent", side_effect=build),
+        ):
+            room.setup_seats()
+
+        self.assertEqual(
+            {seat.agent.persona_idx for seat in room.seats.values()},
+            set(range(PERSONA_COUNT)),
+        )
+
+    def test_mock_seats_never_repeat_the_same_scripted_answer(self) -> None:
+        from app.game.questions import QUESTIONS
+
+        room = Room(
+            id="mock-answer-room",
+            language="en",
+            num_humans=2,
+            num_llms=4,
+        )
+        settings = type("Settings", (), {
+            "agent_models": ["unused-mistral-model"],
+        })()
+
+        def build(provider_id: str, spec) -> LLMAgent:
+            return LLMAgent(
+                spec.seat_id,
+                spec.persona_idx,
+                language=spec.language,
+                answer_variant=spec.answer_variant,
+            )
+
+        with (
+            patch("app.rooms.get_settings", return_value=settings),
+            patch("app.audio.voices.get_pool", return_value=["voice"]),
+            patch("app.rooms.create_agent", side_effect=build),
+        ):
+            room.setup_seats()
+
+        agents = [seat.agent for seat in room.seats.values() if seat.agent]
+        self.assertEqual(len(agents), 4)
+        for card in QUESTIONS:
+            with self.subTest(card=card.id):
+                spoken = [agent._mock_answer(card.prompt) for agent in agents]
+                self.assertEqual(len(set(spoken)), len(agents))
+
     def test_engine_projection_includes_the_same_public_vote_and_reveal_history(self) -> None:
         human = Seat(
             id="Player A",
