@@ -396,9 +396,11 @@ export function createArena({ canvas, root, labels }) {
     return texture;
   }
 
-  function createLabel() {
+  function createLabel(id) {
     const label = document.createElement("div");
     label.className = "arena-tag";
+    // Sert au clic de vote délégué sur le conteneur (cf. `labels.addEventListener`).
+    label.dataset.seat = id || "";
     const head = document.createElement("div");
     head.className = "arena-tag-head";
     const name = document.createElement("strong");
@@ -463,7 +465,7 @@ export function createArena({ canvas, root, labels }) {
     group.add(base, seat, back, ring, sprite, pips, anchor);
     seatGroup.add(group);
 
-    const dom = createLabel();
+    const dom = createLabel(state.id);
     return {
       id: state.id,
       state,
@@ -770,6 +772,25 @@ export function createArena({ canvas, root, labels }) {
   let selectedSeat = "";
   let answerTurnSeat = "";
   let voteTargets = new Set();
+  let voteHandler = null;
+
+  // Voter en cliquant directement l'étiquette du joueur dans l'arène : le clic
+  // remonte au panneau de vote, qui reste la source de vérité (sélection,
+  // `aria-checked`, envoi). Délégué sur le conteneur pour survivre au
+  // recyclage des étiquettes par `sync()`.
+  function onLabelClick(event) {
+    if (!voteHandler) return;
+    const label = event.target.closest?.(".arena-tag");
+    const id = label?.dataset.seat;
+    if (!id || !voteTargets.has(id)) return;
+    voteHandler(id);
+  }
+  labels.addEventListener("click", onLabelClick);
+
+  // Le panneau de vote branche/débranche ce rappel à l'ouverture/fermeture.
+  function setVoteHandler(handler = null) {
+    voteHandler = typeof handler === "function" ? handler : null;
+  }
 
   function setPhase(nextPhase = "lobby", nextPrompt = "") {
     if (nextPhase !== "game_over" && resultState.active) {
@@ -1275,6 +1296,8 @@ export function createArena({ canvas, root, labels }) {
     for (const geom of geometries) geom.dispose();
     for (const mat of materials) mat.dispose();
     renderer.dispose();
+    labels.removeEventListener("click", onLabelClick);
+    voteHandler = null;
     labels.replaceChildren();
     root.classList.remove("webgl-ready");
   }
@@ -1287,6 +1310,7 @@ export function createArena({ canvas, root, labels }) {
     setSeatAnswer,
     setSpeaking,
     setVoteTargets,
+    setVoteHandler,
     setSelected,
     showVoteResult,
     eliminate,

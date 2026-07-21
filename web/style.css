@@ -2092,7 +2092,19 @@ body[data-screen="game"] .arena-viz {
   background: rgba(42, 5, 3, 0.94);
   opacity: 1;
 }
-.arena-tag.is-vote-target { opacity: 1; }
+/* Pendant le vote, l'étiquette devient une cible cliquable : elle coche la case
+   correspondante du panneau de droite. Le conteneur `.arena-labels` est en
+   `pointer-events: none`, seul le siège votable réactive les clics. */
+.arena-tag.is-vote-target {
+  opacity: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.arena-tag.is-vote-target:hover {
+  border-color: var(--red);
+  border-left-color: var(--red);
+  box-shadow: 0 0 0 1px rgba(226, 62, 39, 0.45), 6px 6px 0 rgba(226, 62, 39, 0.2);
+}
 .arena-tag.is-dead {
   border-color: rgba(141, 135, 121, 0.3);
   border-left-color: var(--faint);

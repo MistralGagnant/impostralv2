@@ -1606,9 +1606,25 @@
   function buildVotePanel(targets, requestId) {
     let selectedTarget = "";
     const options = [];
+    const optionBySeat = new Map();
     voteOptions.innerHTML = "";
     submitVote.disabled = true;
     arena3d?.setVoteTargets(targets);
+    // Un seul chemin de sélection, qu'on clique la case du panneau ou
+    // l'étiquette du joueur dans l'arène 3D.
+    const select = (seatId) => {
+      const option = optionBySeat.get(seatId);
+      if (!option) return;
+      const changed = selectedTarget !== seatId;
+      selectedTarget = seatId;
+      submitVote.disabled = false;
+      arena3d?.setSelected(seatId);
+      for (const node of options) {
+        node.setAttribute("aria-checked", String(node === option));
+      }
+      if (changed) S?.play("select");
+    };
+    arena3d?.setVoteHandler?.(select);
     for (const t of targets) {
       const seatIndex = Math.max(0, seats.findIndex((seat) => seat.id === t));
       const option = document.createElement("button");
@@ -1622,16 +1638,7 @@
       const label = document.createElement("span");
       label.textContent = displaySeat(t);
       option.append(img, label);
-      option.addEventListener("click", () => {
-        const changed = selectedTarget !== t;
-        selectedTarget = t;
-        submitVote.disabled = false;
-        arena3d?.setSelected(t);
-        voteOptions.querySelectorAll(".vote-option").forEach((node) =>
-          node.setAttribute("aria-checked", String(node === option))
-        );
-        if (changed) S?.play("select");
-      });
+      option.addEventListener("click", () => select(t));
       option.addEventListener("keydown", (event) => {
         if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"].includes(event.key)) return;
         event.preventDefault();
@@ -1642,6 +1649,7 @@
         next?.click();
       });
       options.push(option);
+      optionBySeat.set(t, option);
       voteOptions.appendChild(option);
     }
     submitVote.onclick = () => {
@@ -1957,6 +1965,7 @@
     voteOptions.innerHTML = "";
     submitVote.disabled = true;
     submitVote.onclick = null;
+    arena3d?.setVoteHandler?.(null);
     arena3d?.setVoteTargets([]);
     arena3d?.setSelected("");
   }
