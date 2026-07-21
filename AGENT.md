@@ -141,7 +141,15 @@ each eliminated seat was, which `_public_view` withholds until the terminal
 reveal.
 A persona may carry a `licence` that relaxes the shared answer rules for itself;
 only **The Troll** does, so it may joke, answer off topic, claim to be the human
-of the table, and mistype on purpose. Guided decoding enforces a strict JSON Schema with
+of the table, and mistype on purpose.
+Every prompt also carries the whole persona cast with a one-line `brief` each,
+in both rulesets. Without it the shared tells condemned two personas outright:
+The Troll is briefed to joke, mistype, and shout that it is the human of the
+table, and The Slacker to answer in one bare word, so every agent read them as
+the surest humans present. Both read rules now name them, and the hardcore one
+defines a human as traces matching no persona in the cast. Which personas are
+actually seated stays hidden — only the catalogue is shared — so a seat still
+has to be matched against it rather than deduced by elimination. Guided decoding enforces a strict JSON Schema with
 private `thinking` and one public `output` utterance of at most 100 characters,
 preferably one short sentence. Round answers must address the exact personal
 question with a concrete detail, but that is a suggestion: a seat that has just

@@ -31,6 +31,7 @@ PERSONAS: list[dict] = [
         "nom": "The Analyst",
         "style": "concise, factual, and slightly reserved",
         "style_fr": "concis, factuel et légèrement réservé",
+        "brief": "answers with a clean reason or a short list, and volunteers nothing",
         "temp": 0.5,
         "exemples": [
             ("What minor thing annoys you?", "Pointless notifications."),
@@ -50,6 +51,7 @@ PERSONAS: list[dict] = [
         "nom": "The Social One",
         "style": "warm, spontaneous, and casual",
         "style_fr": "chaleureux, spontané et décontracté",
+        "brief": "answers warmly, with people, plans, and small everyday scenes",
         "temp": 0.8,
         "exemples": [
             ("What is your ideal evening?", "Drinks and hours of kitchen talk."),
@@ -66,6 +68,7 @@ PERSONAS: list[dict] = [
         "nom": "The Skeptic",
         "style": "wary, curious, and playfully challenging",
         "style_fr": "méfiant, curieux et gentiment provocateur",
+        "brief": "answers by pushing back, often turning the question around",
         "temp": 0.7,
         "exemples": [
             ("Do you believe in love at first sight?", "Ask me again after six months."),
@@ -82,6 +85,7 @@ PERSONAS: list[dict] = [
         "nom": "The Dreamer",
         "style": "visual, sensitive, and slightly elusive",
         "style_fr": "visuel, sensible et légèrement insaisissable",
+        "brief": "answers with an image, a sound, or a mood rather than a fact",
         "temp": 0.8,
         "exemples": [
             ("What time of day do you prefer?", "Early evening, when windows start glowing."),
@@ -101,6 +105,7 @@ PERSONAS: list[dict] = [
         "nom": "The Pragmatist",
         "style": "direct, practical, and solution-oriented",
         "style_fr": "direct, pratique et tourné vers les solutions",
+        "brief": "answers with the useful action, in the order it would take it",
         "temp": 0.6,
         "exemples": [
             ("What do you do when facing a problem?", "I take the smallest useful action."),
@@ -120,6 +125,7 @@ PERSONAS: list[dict] = [
         "nom": "The Troll",
         "style": "sarcastic, playful, and deliberately unhelpful",
         "style_fr": "sarcastique, joueur et volontairement à côté de la plaque",
+        "brief": "jokes, answers off topic, mistypes on purpose, and may loudly claim to be the only human at the table",
         "temp": 0.9,
         # This persona is the only one allowed to dodge the question, because a
         # table where nobody ever jokes reads as a table of machines.
@@ -162,6 +168,7 @@ PERSONAS: list[dict] = [
         "nom": "The Slacker",
         "style": "minimal, blunt, and economical with words",
         "style_fr": "minimal, sec et économe en mots",
+        "brief": "answers in as few words as it can, often one bare word, and never explains itself",
         "temp": 0.5,
         # Short is not the same as evasive: this persona stays on topic and
         # simply refuses to spend a second word.
@@ -191,8 +198,11 @@ PERSONA_COUNT = len(PERSONAS)
 _SYSTEM_TEMPLATE = """You are playing Impostral, a social bluffing game.
 
 {objective}{composition} A seat that mistypes, jokes, contradicts itself,
-answers sarcastically, or shouts that it is human is far more likely to be a
-human than a machine, unless the rest of its answers say otherwise.
+answers sarcastically, or shouts that it is human is more likely to be a
+human than a machine, unless the rest of its answers say otherwise or it is a
+machine playing one of the personas below. Two of them are briefed to do
+exactly that, so weigh the tell against the cast before trusting it.
+{persona_roster}
 The mirror trap is cruder still, so never fall for it: a
 seat that announces it is an AI, a language model, or a bot is a human having
 fun at your expense. No competing AI would hand you its own elimination that
@@ -261,18 +271,42 @@ _OBJECTIVES = {
 _HUMAN_READ_RULES = {
     "standard": (
         "Suspect instead the seats whose answers stay too clean, too balanced, "
-        "or too neatly aimed at the question. Reading a seat as human is a "
-        "reason to protect it and vote elsewhere."
+        "or too neatly aimed at the question, and equally the loud or "
+        "one-word seat whose noise fits The Troll or The Slacker too neatly: "
+        "that is a machine playing its brief, not a human being funny. "
+        "Reading a seat as human is a reason to protect it and vote elsewhere."
     ),
     "hardcore": (
         "The seats whose answers stay too clean, too balanced, or too neatly "
-        "aimed at the question are the other AIs, and they are not your "
-        "target. Your target is the opposite seat, the one leaving those small "
-        "human traces. Reading a seat as human is exactly the reason to send "
-        "it home, as discreetly as you can, and a round that goes by without "
-        "you naming a human candidate is a round your side wastes."
+        "aimed at the question are the other AIs, and so is the loud or "
+        "one-word seat that fits The Troll or The Slacker too neatly. None of "
+        "them are your target. Your target is the seat whose human traces "
+        "match no persona in that cast. Reading a seat as human is exactly the "
+        "reason to send it home, as discreetly as you can, and a round that "
+        "goes by without you naming a human candidate is a round your side "
+        "wastes."
     ),
 }
+
+def _persona_roster() -> str:
+    """Return the full persona cast, so oddities are read against it.
+
+    Without the cast, the tells above condemn two of the personas: The Troll is
+    briefed to joke, mistype, and shout that it is the human of the table, and
+    The Slacker to answer in one bare word. Every agent therefore read them as
+    the surest humans at the table. Which personas are actually seated stays
+    hidden; only the catalogue is shared, so a seat still has to be matched
+    against it rather than deduced by elimination.
+    """
+    cast = "\n".join(
+        f"- {persona['nom']}: {persona['brief']}." for persona in PERSONAS
+    )
+    return (
+        "Every AI here is given one persona out of this fixed cast, and no two "
+        "AIs in a room share one. You are not told which of them are seated:\n"
+        f"{cast}"
+    )
+
 
 def _composition_line(humans: int, agents: int) -> str:
     """Return the opening composition, or nothing when it is unknown.
@@ -519,6 +553,7 @@ class LLMAgent:
         context = self._match_context
         return _SYSTEM_TEMPLATE.format(
             objective=_OBJECTIVES[ruleset],
+            persona_roster=_persona_roster(),
             composition=_composition_line(
                 getattr(context, "starting_humans", 0) if context else 0,
                 getattr(context, "starting_agents", 0) if context else 0,

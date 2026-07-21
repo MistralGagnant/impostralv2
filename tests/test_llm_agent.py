@@ -214,6 +214,29 @@ class SortieAgentTest(unittest.TestCase):
             LLMAgent("Player A", 0)._vote_task("en"),
         )
 
+    def test_le_catalogue_des_personas_est_partage_dans_les_deux_reglements(
+        self,
+    ) -> None:
+        for hardcore in (False, True):
+            prompt = LLMAgent("Player A", 0, hardcore=hardcore)._system("en")
+            with self.subTest(hardcore=hardcore):
+                # Tout le casting, avec sa description, et lui seul : quels
+                # personas sont réellement assis reste caché.
+                for persona in PERSONAS:
+                    self.assertIn(
+                        f"- {persona['nom']}: {persona['brief']}.", prompt
+                    )
+                self.assertIn("You are not told which of them are seated", prompt)
+                # Sans ça, le paragraphe au-dessus condamnait deux personas :
+                # le troll et le laconique étaient lus comme les humains les
+                # plus sûrs de la table, alors qu'ils jouent leur consigne.
+                self.assertIn("The Troll or The Slacker", prompt)
+
+        # Le troll ne doit plus être le siège le plus « humain » du prompt.
+        self.assertIn(
+            "not a human being funny", LLMAgent("Player A", 0)._system("en")
+        )
+
     def test_le_prompt_annonce_la_composition_de_depart(self) -> None:
         import asyncio
 
@@ -270,7 +293,8 @@ class SortieAgentTest(unittest.TestCase):
         # Les indices de lecture sont partagés, mais ils désignent des cibles
         # opposées : viser les sièges trop propres enverrait l'agent hardcore
         # sur son propre camp une phrase avant l'ordre de chasser les humains.
-        self.assertIn("they are not your target", prompt)
+        self.assertIn("None of them are your target", prompt)
+        self.assertIn("match no persona in that cast", prompt)
         self.assertIn("naming a human candidate", prompt)
         self.assertNotIn("Suspect instead", prompt)
         self.assertIn("Suspect instead", LLMAgent("Player A", 0)._system())
