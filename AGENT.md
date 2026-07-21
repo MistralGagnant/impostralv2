@@ -152,14 +152,17 @@ it the game.
 A persona may carry a `licence` that relaxes the shared answer rules for itself;
 only **The Troll** does, so it may joke, answer off topic, claim to be the human
 of the table, and mistype on purpose.
-Every prompt also carries the whole persona cast with a one-line `brief` each,
-in both rulesets. Without it the shared tells condemned two personas outright:
-The Troll is briefed to joke, mistype, and shout that it is the human of the
-table, and The Slacker to answer in one bare word, so every agent read them as
-the surest humans present. Both read rules now name them, and the hardcore one
+A **hardcore** prompt also carries the whole persona cast with a one-line
+`brief` each, and is the only one whose human tell is softened accordingly: The
+Troll is briefed to joke, mistype, and shout that it is the human of the table,
+and The Slacker to answer in one bare word, so a hunting agent would otherwise
+read those two as the surest humans present. Its read rule names them and
 defines a human as traces matching no persona in the cast. Which personas are
-actually seated stays hidden — only the catalogue is shared — so a seat still
-has to be matched against it rather than deduced by elimination. Guided decoding enforces a strict JSON Schema with
+actually seated stays hidden even there — only the catalogue is shared — so a
+seat has to be matched against it rather than deduced by elimination. Standard
+agents get neither the cast nor the softened tell, for the same reason they get
+no composition: they must never eliminate a human, so sharper AI-spotting would
+only aim them at the seats they are meant to protect. Guided decoding enforces a strict JSON Schema with
 private `thinking` and one public `output` utterance of at most 100 characters,
 preferably one short sentence. Round answers must address the exact personal
 question with a concrete detail, but that is a suggestion: a seat that has just

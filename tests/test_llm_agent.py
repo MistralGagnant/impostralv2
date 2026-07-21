@@ -214,28 +214,30 @@ class SortieAgentTest(unittest.TestCase):
             LLMAgent("Player A", 0)._vote_task("en"),
         )
 
-    def test_le_catalogue_des_personas_est_partage_dans_les_deux_reglements(
-        self,
-    ) -> None:
-        for hardcore in (False, True):
-            prompt = LLMAgent("Player A", 0, hardcore=hardcore)._system("en")
-            with self.subTest(hardcore=hardcore):
-                # Tout le casting, avec sa description, et lui seul : quels
-                # personas sont réellement assis reste caché.
-                for persona in PERSONAS:
-                    self.assertIn(
-                        f"- {persona['nom']}: {persona['brief']}.", prompt
-                    )
-                self.assertIn("You are not told which of them are seated", prompt)
-                # Sans ça, le paragraphe au-dessus condamnait deux personas :
-                # le troll et le laconique étaient lus comme les humains les
-                # plus sûrs de la table, alors qu'ils jouent leur consigne.
-                self.assertIn("The Troll or The Slacker", prompt)
+    def test_le_catalogue_des_personas_est_reserve_au_hardcore(self) -> None:
+        hardcore = LLMAgent("Player A", 0, hardcore=True)._system("en")
+        standard = LLMAgent("Player A", 0)._system("en")
 
-        # Le troll ne doit plus être le siège le plus « humain » du prompt.
-        self.assertIn(
-            "not a human being funny", LLMAgent("Player A", 0)._system("en")
-        )
+        # Hardcore : tout le casting avec sa description, pour distinguer une
+        # machine qui joue le troll de l'humain recherché. Quels personas sont
+        # réellement assis reste caché même là.
+        for persona in PERSONAS:
+            self.assertIn(f"- {persona['nom']}: {persona['brief']}.", hardcore)
+        self.assertIn("You are not told which of them are seated", hardcore)
+        self.assertIn("The Troll or The Slacker", hardcore)
+
+        # Standard : une IA n'a jamais à faire éliminer d'humain, donc le même
+        # savoir ne ferait que l'aiguiser contre les sièges qu'elle protège.
+        self.assertNotIn("fixed cast", standard)
+        self.assertNotIn("The Troll", standard)
+        for persona in PERSONAS:
+            self.assertNotIn(persona["brief"], standard)
+
+        # La phrase d'origine sur les comportements humains est intacte en
+        # standard, et seulement nuancée en hardcore par le casting.
+        self.assertIn("far more likely to be a human than a machine", standard)
+        self.assertIn("say otherwise.", standard)
+        self.assertNotIn("far more likely", hardcore)
 
     def test_le_prompt_annonce_la_composition_de_depart(self) -> None:
         import asyncio

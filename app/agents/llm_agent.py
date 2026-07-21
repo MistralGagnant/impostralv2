@@ -197,12 +197,7 @@ PERSONA_COUNT = len(PERSONAS)
 
 _SYSTEM_TEMPLATE = """You are playing Impostral, a social bluffing game.
 
-{objective}{composition} A seat that mistypes, jokes, contradicts itself,
-answers sarcastically, or shouts that it is human is more likely to be a
-human than a machine, unless the rest of its answers say otherwise or it is a
-machine playing one of the personas below. Two of them are briefed to do
-exactly that, so weigh the tell against the cast before trusting it.
-{persona_roster}
+{objective}{composition} {human_tell}{persona_roster}
 The mirror trap is cruder still, so never fall for it: a
 seat that announces it is an AI, a language model, or a bot is a human having
 fun at your expense. No competing AI would hand you its own elimination that
@@ -263,6 +258,25 @@ _OBJECTIVES = {
     ),
 }
 
+# How to read human noise. A standard agent never sees the persona cast, so it
+# gets the plain tell; only a hardcore one is warned that two of the personas
+# it can read about are briefed to fake exactly that noise.
+_HUMAN_TELLS = {
+    "standard": (
+        "A seat that mistypes, jokes, contradicts itself, answers "
+        "sarcastically, or shouts that it is human is far more likely to be a "
+        "human than a machine, unless the rest of its answers say otherwise."
+    ),
+    "hardcore": (
+        "A seat that mistypes, jokes, contradicts itself, answers "
+        "sarcastically, or shouts that it is human is more likely to be a "
+        "human than a machine, unless the rest of its answers say otherwise "
+        "or it is a machine playing one of the personas below. Two of them are "
+        "briefed to do exactly that, so weigh the tell against the cast before "
+        "trusting it."
+    ),
+}
+
 # Who to look for, and what to do once you are confident a seat is human. The
 # tells are the same in both rulesets, but they designate opposite targets, so
 # the sentence naming the target is swapped along with the conclusion. Leaving
@@ -271,10 +285,8 @@ _OBJECTIVES = {
 _HUMAN_READ_RULES = {
     "standard": (
         "Suspect instead the seats whose answers stay too clean, too balanced, "
-        "or too neatly aimed at the question, and equally the loud or "
-        "one-word seat whose noise fits The Troll or The Slacker too neatly: "
-        "that is a machine playing its brief, not a human being funny. "
-        "Reading a seat as human is a reason to protect it and vote elsewhere."
+        "or too neatly aimed at the question. Reading a seat as human is a "
+        "reason to protect it and vote elsewhere."
     ),
     "hardcore": (
         "The seats whose answers stay too clean, too balanced, or too neatly "
@@ -291,20 +303,21 @@ _HUMAN_READ_RULES = {
 def _persona_roster() -> str:
     """Return the full persona cast, so oddities are read against it.
 
-    Without the cast, the tells above condemn two of the personas: The Troll is
-    briefed to joke, mistype, and shout that it is the human of the table, and
-    The Slacker to answer in one bare word. Every agent therefore read them as
-    the surest humans at the table. Which personas are actually seated stays
-    hidden; only the catalogue is shared, so a seat still has to be matched
-    against it rather than deduced by elimination.
+    Hardcore only. It lets a hunting agent tell a machine playing The Troll or
+    The Slacker from the human it is looking for, instead of reading their
+    briefed noise as the surest human tell at the table. A standard agent must
+    never eliminate a human, so the same knowledge would only sharpen it
+    against the seats it is supposed to protect. Which personas are actually
+    seated stays hidden even in hardcore: only the catalogue is shared, so a
+    seat has to be matched against it rather than deduced by elimination.
     """
     cast = "\n".join(
         f"- {persona['nom']}: {persona['brief']}." for persona in PERSONAS
     )
     return (
-        "Every AI here is given one persona out of this fixed cast, and no two "
-        "AIs in a room share one. You are not told which of them are seated:\n"
-        f"{cast}"
+        "\nEvery AI here is given one persona out of this fixed cast, and no "
+        "two AIs in a room share one. You are not told which of them are "
+        f"seated:\n{cast}"
     )
 
 
@@ -553,11 +566,12 @@ class LLMAgent:
         context = self._match_context
         return _SYSTEM_TEMPLATE.format(
             objective=_OBJECTIVES[ruleset],
-            persona_roster=_persona_roster(),
-            # Hardcore only: knowing how many humans sat down tells an agent how
-            # many targets remain, which is a hunting tool. A standard agent
-            # never hunts humans, so the count would only help it do the one
-            # thing that costs it the game.
+            human_tell=_HUMAN_TELLS[ruleset],
+            # Hardcore only, both of them: the persona cast and the human count
+            # are hunting tools. A standard agent never eliminates a human, so
+            # either one would only sharpen it against the seats it is meant to
+            # protect.
+            persona_roster=_persona_roster() if self.hardcore else "",
             composition=_composition_line(
                 getattr(context, "starting_humans", 0) if context else 0,
                 getattr(context, "starting_agents", 0) if context else 0,
