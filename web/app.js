@@ -36,6 +36,9 @@
   let cachedTurnstileTokenAt = 0;
   let turnstileWidgetId = null;
   const latestUtterances = new Map();
+  // Fondu d'entrée du verdict (`result-overlay-in`, 520 ms) plus une marge :
+  // l'arène n'est révélée qu'une fois l'overlay opaque.
+  const RESULT_REVEAL_DELAY_MS = 560;
   // Latest ballot: seat id -> votes received, shown as badges on the arena.
   let voteTally = {};
   let voteEliminated = null;
@@ -1961,10 +1964,14 @@
       name.className = "result-player-name";
       name.textContent = displaySeat(seat.id);
 
+      // Le dialogue lit le verdict, jamais l'état des sièges : celui-ci n'est
+      // révélé qu'une fois l'overlay opaque, pour ne pas montrer les rôles
+      // dans l'arène pendant le fondu.
+      const revealedRole = msg.roles?.[seat.id] || seat.role;
       const role = document.createElement("span");
       role.className = "result-player-role"
-        + (seat.role === "human" ? " is-human" : " is-agent");
-      role.textContent = seat.role === "human"
+        + (revealedRole === "human" ? " is-human" : " is-agent");
+      role.textContent = revealedRole === "human"
         ? t("seat.human")
         : (prettyModel(models[seat.id] || seat.model) || t("seat.ai"));
 
@@ -1983,6 +1990,9 @@
     const winners = new Set(msg.winners || []);
     const outcome = humanOutcome(msg);
     const personalSeat = seats.find((seat) => seat.id === you);
+    // Même lecture que le roster : le verdict fait foi, pas l'état des sièges,
+    // qui n'est révélé qu'après le fondu.
+    const personalRole = msg.roles?.[you] || personalSeat?.role;
     const winnerIds = [...winners];
     const resultText = displayText(msg.message) || (winnerIds.length === 1
       ? t("game.single_winner", { winner: displaySeat(winnerIds[0]) })
@@ -2001,9 +2011,9 @@
     resultTitle.textContent = resultHeadline(msg, outcome);
     resultSummary.textContent = resultText;
     resultReason.textContent = resultReasonCopy(msg.reason);
-    resultYourRole.textContent = personalSeat?.role
+    resultYourRole.textContent = personalRole
       ? t("result.your_role", {
-        role: personalSeat.role === "human" ? t("seat.human") : t("seat.ai"),
+        role: personalRole === "human" ? t("seat.human") : t("seat.ai"),
       })
       : "";
     resultYourRole.classList.toggle("hidden", !resultYourRole.textContent);
@@ -2036,31 +2046,7 @@
     clearAnswerTurn();
     phaseName.textContent = t("phase.game_over");
     phaseTimer.textContent = "";
-    const models = msg.models || {};
-    seats = seats.map((seat) => ({
-      ...seat,
-      role: msg.roles?.[seat.id] || seat.role,
-      model: models[seat.id] || seat.model,
-    }));
-    renderSeats();
-
     const outcome = humanOutcome(msg);
-    const arenaPayload = {
-      ...msg,
-      phase: "game_over",
-      prompt: t("phase.hunt_over"),
-      outcome,
-      you,
-      seats: seats.map((seat, index) => ({
-        ...seat,
-        avatarIndex: index,
-        you: seat.id === you,
-        answer: latestUtterances.get(seat.id) || "",
-        votes: voteTally[seat.id] || 0,
-      })),
-    };
-    if (arena3d?.showGameOver) arena3d.showGameOver(arenaPayload);
-    else arena3d?.gameOver?.(arenaPayload);
 
     if (firstGameOver) {
       // The score follows the same human reading as the verdict: the open
@@ -2080,6 +2066,43 @@
     document.querySelector(".winner")?.remove();
     elimActive = false;
     showResult(msg, { focus: firstGameOver });
+    revealEveryone(msg, outcome);
+  }
+
+  // Le verdict arrive une seconde et demie après la dernière élimination, et
+  // son overlay entre en fondu depuis `opacity: 0`. Révéler l'arène tout de
+  // suite ferait clignoter le rôle et le modèle de chaque siège encore vivant
+  // sous un dialogue transparent, juste après une carte d'élimination : la
+  // révélation attend donc que le verdict couvre l'arène.
+  function revealEveryone(msg, outcome) {
+    setTimeout(() => {
+      // Retour au menu pendant le fondu : plus rien à révéler.
+      if (!gameFinished) return;
+      const models = msg.models || {};
+      seats = seats.map((seat) => ({
+        ...seat,
+        role: msg.roles?.[seat.id] || seat.role,
+        model: models[seat.id] || seat.model,
+      }));
+      renderSeats();
+
+      const arenaPayload = {
+        ...msg,
+        phase: "game_over",
+        prompt: t("phase.hunt_over"),
+        outcome,
+        you,
+        seats: seats.map((seat, index) => ({
+          ...seat,
+          avatarIndex: index,
+          you: seat.id === you,
+          answer: latestUtterances.get(seat.id) || "",
+          votes: voteTally[seat.id] || 0,
+        })),
+      };
+      if (arena3d?.showGameOver) arena3d.showGameOver(arenaPayload);
+      else arena3d?.gameOver?.(arenaPayload);
+    }, RESULT_REVEAL_DELAY_MS);
   }
 
   // ------------------------------------------------------------------

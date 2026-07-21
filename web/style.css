@@ -648,7 +648,11 @@ body[data-screen="join"] .brand {
   background: transparent;
   color: var(--landing-text);
 }
+/* `.nav-btn` doit suivre `.hud-nav a` partout : oublié ici, le bouton Règles
+   gardait le gabarit encadré du HUD de partie au milieu des liens plats de la
+   landing, y compris sur desktop. */
 body[data-screen="join"] .hud-nav a,
+body[data-screen="join"] .hud-nav .nav-btn,
 body[data-screen="join"] .sound-toggle {
   padding: 7px 0;
   border: 0;
@@ -660,6 +664,7 @@ body[data-screen="join"] .sound-toggle {
   text-transform: none;
 }
 body[data-screen="join"] .hud-nav a:hover,
+body[data-screen="join"] .hud-nav .nav-btn:hover,
 body[data-screen="join"] .sound-toggle:hover {
   border-bottom-color: var(--orange);
   background: transparent;
@@ -1856,6 +1861,7 @@ body[data-phase="game_over"] .question-frame { display: none; }
 @media (max-width: 560px) {
   .hud-header { min-height: 56px; padding: 4px 16px 0; }
   .hud-nav a,
+  .hud-nav .nav-btn,
   .sound-toggle { padding: 6px 9px; font-size: 0.54rem; }
   .sound-toggle { min-width: 44px; min-height: 44px; justify-content: center; }
   #sound-toggle-label { display: none; }
@@ -1922,6 +1928,7 @@ body[data-phase="game_over"] .question-frame { display: none; }
 @media (max-width: 560px) {
   body[data-screen="join"] .hud-header { padding: 7px 16px; }
   body[data-screen="join"] .hud-nav a,
+  body[data-screen="join"] .hud-nav .nav-btn,
   body[data-screen="join"] .sound-toggle { font-size: 0.6rem; }
   body[data-screen="join"] .sound-toggle { padding: 6px; }
   body[data-screen="join"] .join-screen { padding: 32px 16px 20px; }
@@ -2421,6 +2428,7 @@ body[data-screen="game"] textarea:focus-visible {
 
 @media (max-width: 560px) {
   body[data-screen="game"] .hud-nav a,
+  body[data-screen="game"] .hud-nav .nav-btn,
   body[data-screen="game"] .sound-toggle { padding: 6px 4px; }
   body[data-screen="game"] .arena-shell,
   body[data-screen="game"] .arena-viz {
@@ -2513,19 +2521,20 @@ body[data-screen="game"] textarea:focus-visible {
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
-.rules-card ol,
-.rules-card ul { margin: 0; padding-left: 18px; }
-/* Les deux règlements ne diffèrent que sur la sanction du vote contre un
-   humain : chaque variante n'apparaît que dans son mode. */
-.rules-hardcore { display: none; }
-body[data-mode="hardcore"] .rules-standard { display: none; }
-body[data-mode="hardcore"] .rules-hardcore { display: list-item; }
-.rules-card li,
+/* Le titre hardcore reprend le rouge du badge de partie et du bouton d'entrée,
+   pour que les deux règlements se distinguent d'un coup d'œil. */
+.rules-mode-hardcore h3 { color: var(--red); }
 .rules-card section p {
   margin: 0 0 9px;
   font-size: clamp(0.76rem, 1.3vw, 0.9rem);
   line-height: 1.5;
 }
-.rules-card li::marker { color: var(--orange); }
-.rules-card section p:last-child,
-.rules-card li:last-child { margin-bottom: 0; }
+.rules-card section p:last-child { margin-bottom: 0; }
+.rules-tip {
+  margin: 24px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--gold);
+  font-size: clamp(0.76rem, 1.3vw, 0.9rem);
+  line-height: 1.5;
+}

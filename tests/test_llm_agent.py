@@ -198,9 +198,11 @@ class SortieAgentTest(unittest.TestCase):
         # Cibler un humain devient l'objectif, sans jamais voter au hasard.
         self.assertIn("clearly reads as human", english)
         self.assertIn("least convincing seat", english)
+        self.assertIn("flagrant AI", english)
         self.assertNotIn("loses you the game", english)
         self.assertIn("humain", french)
         self.assertIn("le moins crédible", french)
+        self.assertIn("l'IA la plus flagrante", french)
         self.assertNotIn("perdre la partie", french)
         # Le règlement standard reste intact dans la même salle de code.
         self.assertIn(
@@ -223,9 +225,18 @@ class SortieAgentTest(unittest.TestCase):
         self.assertIn("hardcore ruleset", prompt)
         self.assertIn("voting a human out costs you nothing", prompt)
         self.assertIn("the reason to send it home", prompt)
+        # L'agent doit savoir qu'il joue avec les autres IA, pas contre elles,
+        # et que son bulletin appartient d'abord à la chasse aux humains.
+        self.assertIn("the AIs are one side against the humans", prompt)
+        self.assertIn("briefed exactly like you", prompt)
+        self.assertIn(
+            "Never spend a ballot on another AI while a human is still readable",
+            prompt,
+        )
         # La sanction standard ne doit surtout pas rester dans le prompt.
         self.assertNotIn("eliminating a human loses you the game", prompt)
         self.assertNotIn("protect it and vote elsewhere", prompt)
+        self.assertNotIn("Every AI competes independently", prompt)
         # Le reste du prompt (lecture de la table, persona) est partagé.
         self.assertIn("announces it is an AI", prompt)
         self.assertNotIn("\n\n\n", prompt)

@@ -109,7 +109,13 @@ is a **defeat**, even when every remaining AI lost by hunting humans; a draw is
 announced only when a room that started with several humans ends with both a
 human and an AI still seated; any other surviving human is a **victory**,
 including the lone player who reaches the shared final duel. The headline, the
-3D theme, and the score all follow that same reading.
+3D theme, and the score all follow that same reading. `game_over` is the only
+message carrying the model of an agent that is still seated, and it lands a
+second and a half after the last elimination, while the arena is still on
+screen. The dialog therefore reads the verdict payload alone, and the seats
+themselves are only revealed once its fade-in is over
+(`RESULT_REVEAL_DELAY_MS`): revealing them right away would flash every living
+seat's role and model behind a still transparent overlay.
 
 ## Default Mistral models (`app/config.py`)
 
@@ -136,10 +142,14 @@ claimed to be human or called for a vote may be answered instead of the card.
 The ballot itself stays imperative — an agent must vote for the least convincing
 competing AI and never for a seat it believes is human. A hardcore room swaps
 two blocks of that prompt and the whole ballot instruction: the agent is told
-that surviving is all that counts, that voting a human out costs it nothing and
-helps, and that the other AIs are briefed identically, so it should send home
-any seat it reads as human and fall back on the least convincing seat
-otherwise. Only `output` enters the transcript. Mock-mode agents
+that the AIs are one side against the humans, that every other AI is briefed
+identically and hunting them too, that surviving is all that counts and voting
+a human out costs it nothing, and that a ballot is never spent on another AI
+while a human is still readable. It must therefore send home any seat it reads
+as human and fall back on the least convincing, most flagrant AI otherwise.
+That framing is strategic, not accounting: `_game_over` still credits only the
+AIs left alive, exactly as in a standard room. Only `output` enters the
+transcript. Mock-mode agents
 use card-specific scripted answers instead of unrelated persona examples,
 rotated on the seat's rank among the room's agents through
 `AgentBuildSpec.answer_variant` so that two seats never read the same line.
@@ -224,7 +234,7 @@ seats.
 | `app/audio/stt.py` / `tts.py` | Voxtral wrappers with graceful fallback. |
 | `app/audio/voices.py` | Cached preset voice pool, room language first. |
 | `app/audio/store.py` | Ephemeral FIFO audio store served from `/audio/{id}`. |
-| `web/` | 3D arena, adaptive Web Audio, model statistics dashboard, phase UI, and the header **Rules** dialog stating the victory, draw, and disqualification conditions. |
+| `web/` | 3D arena, adaptive Web Audio, model statistics dashboard, phase UI, and the header **Rules** dialog: a minimal panel giving the round loop, then what winning means under each ruleset side by side. Both are always shown, since the landing does not yet know the room's mode. |
 
 ## WebSocket protocol
 

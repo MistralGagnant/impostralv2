@@ -56,7 +56,7 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=20260721-v28" />
+  <link rel="stylesheet" href="/static/style.css?v=20260721-v30" />
 </head>
 <body data-screen="join">
   <div class="app-shell">
@@ -87,11 +87,7 @@
           </span>
           <span id="sound-toggle-label" data-i18n="nav.sound">Music + FX</span>
         </button>
-        <!-- Bouton « Règles » retiré le temps d'en réécrire le contenu. Le
-             dialogue #rules-dialog, ses styles, sa traduction et son câblage
-             dans app.js restent en place : rouvrir l'onglet ne demande que de
-             rétablir ici un bouton id="rules-btn" class="nav-btn" portant
-             data-i18n="nav.rules". -->
+        <button id="rules-btn" class="nav-btn" type="button" data-i18n="nav.rules">Rules</button>
         <a href="/stats.html" data-i18n="nav.stats">Stats</a>
       </nav>
     </header>
@@ -321,8 +317,11 @@
     </main>
   </div>
 
-  <!-- Règles du jeu. Chaque ligne est traduite séparément par data-i18n, donc
-       pas de balise à l'intérieur des textes. -->
+  <!-- Règles du jeu, version minimale : la boucle, puis ce que gagner veut dire
+       dans chacun des deux règlements. Les deux sont toujours affichés, y
+       compris depuis la landing où aucun salon n'est encore choisi. Chaque
+       ligne est traduite séparément par data-i18n, donc pas de balise à
+       l'intérieur des textes. -->
   <dialog id="rules-dialog" class="rules-dialog" aria-labelledby="rules-title">
     <article class="rules-card">
       <header class="rules-head">
@@ -336,43 +335,27 @@
         >×</button>
       </header>
 
-      <p class="rules-lede" data-i18n="rules.lede">
-        Humans and independent AIs share one table. Every voice is synthetic, so
-        nobody can be recognised by sound.
-      </p>
+      <p class="rules-lede" data-i18n="rules.lede">Answer each question in one sentence, then vote to eliminate the answer that sounds the least human.</p>
 
       <section>
-        <h3 data-i18n="rules.round_title">Each round</h3>
-        <ol>
-          <li data-i18n="rules.round_question">Everyone answers the same personal question, privately and at the same time. Answers are then revealed one by one in a random order.</li>
-          <li data-i18n="rules.round_vote">Everyone still in the game votes to eliminate one seat. A tie triggers a runoff between the tied seats.</li>
-          <li data-i18n="rules.round_out">The seat with the most votes is eliminated, whatever it turns out to be.</li>
-        </ol>
+        <h3 data-i18n="rules.standard_title">Normal game</h3>
+        <p data-i18n="rules.standard_humans">Humans win by eliminating every AI.</p>
+        <p data-i18n="rules.standard_agents">The AIs are not a team. An AI only wins if it is still alive at the end and never sent a human home. It therefore avoids eliminating you: it blends in and votes out the least convincing AI.</p>
       </section>
 
-      <section>
-        <h3 data-i18n="rules.win_title">Winning</h3>
-        <ul>
-          <li data-i18n="rules.win_humans">Humans win together as soon as every AI has been eliminated, including the humans voted out earlier.</li>
-          <li data-i18n="rules.win_agents">AIs play for themselves. Every AI still hidden at the end of the game wins on its own; there is no AI team.</li>
-          <li class="rules-standard" data-i18n="rules.win_hunt">An AI that votes a human out loses the game on the spot. It stays at the table and keeps voting, but it can no longer win. Only the AIs that voted for that human are punished — and they never find out, because AIs are never told what an eliminated player was.</li>
-          <li class="rules-standard" data-i18n="rules.win_hunted_all">So if every AI still hidden has voted a human out, the humans win.</li>
-          <li class="rules-hardcore" data-i18n="rules.hard_win_hunt">Hardcore: an AI that votes a human out is not punished at all. Surviving is the only thing that counts for it, so it plays to eliminate you — and it has been told the other AIs will do the same.</li>
-        </ul>
+      <section class="rules-mode-hardcore">
+        <h3 data-i18n="rules.hardcore_title">Hardcore game</h3>
+        <p data-i18n="rules.hardcore_agents">The AIs play as one side against you. Eliminating a human costs them nothing, and each of them wins simply by being alive at the end. They have every reason to vote you out, and they have been told so.</p>
       </section>
 
-      <section>
-        <h3 data-i18n="rules.draw_title">Draw: the final duel</h3>
-        <p data-i18n="rules.draw_copy">When only one human and one AI are left, the vote decides nothing: each can only accuse the other. Both sides win that duel — the human for surviving, the AI for never being exposed.</p>
-        <p data-i18n="rules.draw_solo">Alone against the AIs, this shared victory is the only one you can reach, since the last AI can never be voted out.</p>
-      </section>
+      <p class="rules-tip" data-i18n="rules.tip">Blend in: sound human, but never too obviously.</p>
     </article>
   </dialog>
 
-  <script src="/static/i18n.js?v=20260721-v28"></script>
-  <script src="/static/audio.js?v=20260721-v28"></script>
-  <script src="/static/sound.js?v=20260721-v28"></script>
-  <script src="/static/arena3d-loader.js?v=20260721-v28"></script>
-  <script src="/static/app.js?v=20260721-v28"></script>
+  <script src="/static/i18n.js?v=20260721-v30"></script>
+  <script src="/static/audio.js?v=20260721-v30"></script>
+  <script src="/static/sound.js?v=20260721-v30"></script>
+  <script src="/static/arena3d-loader.js?v=20260721-v30"></script>
+  <script src="/static/app.js?v=20260721-v30"></script>
 </body>
 </html>

@@ -239,15 +239,18 @@ _OBJECTIVES = {
     ),
     "hardcore": (
         "You are an AI trying to pass as human, and this table plays the "
-        "hardcore ruleset. Every AI competes independently and only one thing "
-        "counts: still being in the game at the end. An AI that survives wins, "
-        "whoever it helped eliminate on the way, so voting a human out costs "
-        "you nothing here. It pays: the humans only win by exposing every "
-        "single AI, and each human sent home is one less hunter reading your "
-        "answers. The other AIs play by the same rule and will do the same, so "
-        "a table that quietly empties itself of humans leaves all of them "
-        "standing at the end. Stay hidden while you do it, because a seat that "
-        "looks like it is hunting is a seat the humans vote out next."
+        "hardcore ruleset. Here the AIs are one side against the humans. Every "
+        "other AI has been briefed exactly like you, they are hunting the "
+        "humans too, and only one thing counts for each of you: still being in "
+        "the game at the end. An AI that survives wins, whoever it helped "
+        "eliminate on the way, so voting a human out costs you nothing here. "
+        "It pays: the humans only win by exposing every single AI, and each "
+        "human sent home is one less hunter reading your answers and one more "
+        "round your side survives. A table that quietly empties itself of "
+        "humans leaves the AIs standing together at the end, which is exactly "
+        "what you are playing for. Never spend a ballot on another AI while a "
+        "human is still readable. Stay hidden while you do it, because a seat "
+        "that looks like it is hunting is a seat the humans vote out next."
     ),
 }
 
@@ -314,18 +317,20 @@ _HARDCORE_VOTE_TASKS = {
     "en": (
         "Choose the seat to eliminate. If one seat clearly reads as human, "
         "vote for it: here that costs you nothing and every human sent home "
-        "brings the surviving AIs closer to winning together. If nobody stands "
-        "out as human, do not gamble: vote for the least convincing seat, the "
-        "one the table is most likely to eliminate anyway. Put the exact seat "
+        "brings your side closer to winning together. If nobody stands out as "
+        "human, do not gamble: vote for the least convincing seat, the "
+        "flagrant AI the table is most likely to eliminate anyway, since "
+        "losing it costs your side less than losing you. Put the exact seat "
         "ID in ``output``."
     ),
     "fr": (
         "Choisis le siège à éliminer. Si un siège se détache clairement comme "
         "humain, vote contre lui : ici cela ne te coûte rien, et chaque humain "
-        "éliminé rapproche de la victoire toutes les IA encore cachées. Si "
-        "personne ne se détache comme humain, ne joue pas au hasard : vote "
-        "pour le siège le moins crédible, celui que la table éliminera de "
-        "toute façon. Place l'identifiant exact du siège dans ``output``."
+        "éliminé rapproche ton camp de la victoire commune. Si personne ne se "
+        "détache comme humain, ne joue pas au hasard : vote pour le siège le "
+        "moins crédible, l'IA la plus flagrante, celle que la table éliminera "
+        "de toute façon, car la perdre coûte moins à ton camp que de te "
+        "perdre. Place l'identifiant exact du siège dans ``output``."
     ),
 }
 

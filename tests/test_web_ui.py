@@ -1,12 +1,13 @@
 """Static contracts for user-facing web behavior."""
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260721-v28"
+ASSET_VERSION = "20260721-v30"
 
 
 class WebUiTest(unittest.TestCase):
@@ -113,27 +114,31 @@ class WebUiTest(unittest.TestCase):
         self.assertIn('const STORAGE_KEY = "impostral.language"', i18n_js)
         self.assertIn(".language-switch button[aria-checked=\"true\"]", css)
 
-    def test_rules_panel_is_ready_but_not_yet_reachable(self) -> None:
+    def test_rules_panel_states_both_rulesets_from_the_header(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         i18n_js = (ROOT / "web" / "i18n.js").read_text(encoding="utf-8")
         css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
 
-        # The entry point is removed until the copy is rewritten; the panel
-        # behind it must keep working so restoring the button is enough.
-        self.assertNotIn('<button id="rules-btn"', html)
+        self.assertIn('<button id="rules-btn" class="nav-btn"', html)
         self.assertIn('<dialog id="rules-dialog"', html)
         self.assertIn("rulesDialog.showModal()", app_js)
         self.assertIn(".rules-dialog::backdrop", css)
 
-        # Every outcome a player can reach must be spelled out, in both
-        # languages, since the rules panel is the only place that explains them.
+        # Le bouton doit suivre les liens de la nav partout, sinon il garde le
+        # gabarit encadré du HUD au milieu des liens plats de la landing.
+        self.assertIn('body[data-screen="join"] .hud-nav .nav-btn,', css)
+        self.assertIn('body[data-screen="join"] .hud-nav .nav-btn:hover,', css)
+        self.assertIn("  .hud-nav .nav-btn,\n  .sound-toggle {", css)
+
+        # Les deux règlements sont décrits côte à côte, en anglais et en
+        # français : la landing ne connaît pas encore le mode du salon.
         keys = (
-            "rules.win_humans",
-            "rules.win_agents",
-            "rules.win_hunt",
-            "rules.draw_copy",
-            "rules.draw_solo",
+            "rules.lede",
+            "rules.standard_humans",
+            "rules.standard_agents",
+            "rules.hardcore_agents",
+            "rules.tip",
         )
         for key in keys:
             self.assertIn(f'data-i18n="{key}"', html)
@@ -254,6 +259,39 @@ class WebUiTest(unittest.TestCase):
         self.assertIn("function playResult", sound_js)
         self.assertIn(".result-player.is-winner", css)
         self.assertIn("@media (prefers-reduced-motion: reduce)", css)
+
+    def test_roles_are_never_revealed_before_the_verdict_covers_the_arena(
+        self,
+    ) -> None:
+        """Le rôle des sièges vivants ne doit pas clignoter dans l'arène.
+
+        `game_over` arrive une seconde et demie après la dernière élimination
+        et porte le modèle de chaque IA, y compris celles encore en jeu. Tant
+        que l'overlay du verdict n'est pas opaque, l'arène reste visible
+        derrière : révéler les sièges avant la fin du fondu afficherait tous
+        les modèles pendant un demi-tour de jeu.
+        """
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
+
+        fade = re.search(r"animation: result-overlay-in (\d+)ms", css)
+        delay = re.search(r"RESULT_REVEAL_DELAY_MS = (\d+)", app_js)
+        self.assertIsNotNone(fade)
+        self.assertIsNotNone(delay)
+        self.assertGreaterEqual(int(delay.group(1)), int(fade.group(1)))
+
+        # La révélation vit hors de onGameOver, derrière ce délai.
+        game_over = app_js.index("function onGameOver(msg)")
+        reveal = app_js.index("function revealEveryone(msg, outcome)")
+        body = app_js[game_over:reveal]
+        self.assertLess(body.index("showResult(msg"), body.index("revealEveryone("))
+        self.assertNotIn("seats = seats.map(", body)
+        self.assertNotIn("showGameOver", body)
+        self.assertIn("}, RESULT_REVEAL_DELAY_MS);", app_js[reveal:])
+
+        # Le dialogue lit donc le verdict, pas l'état encore masqué des sièges.
+        self.assertIn("const revealedRole = msg.roles?.[seat.id] || seat.role;", app_js)
+        self.assertIn("const personalRole = msg.roles?.[you] || personalSeat?.role;", app_js)
 
     def test_final_verdict_is_read_from_the_human_side(self) -> None:
         app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
@@ -391,9 +429,10 @@ class WebUiTest(unittest.TestCase):
         self.assertIn('data-i18n="hud.hardcore"', html)
         self.assertIn("document.body.dataset.mode = msg.mode", app_js)
         self.assertIn('body[data-mode="hardcore"] .mode-badge {', css)
-        # Les règles affichées suivent le règlement du salon.
-        self.assertIn('class="rules-hardcore"', html)
-        self.assertIn('body[data-mode="hardcore"] .rules-standard { display: none; }', css)
+        # Le panneau de règles décrit toujours les deux règlements ; seul le
+        # rouge du titre hardcore le distingue de la partie normale.
+        self.assertIn('<section class="rules-mode-hardcore">', html)
+        self.assertIn(".rules-mode-hardcore h3 { color: var(--red); }", css)
 
 
 if __name__ == "__main__":
