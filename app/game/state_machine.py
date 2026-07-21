@@ -908,6 +908,15 @@ class GameEngine:
     # ------------------------------------------------------------------
     async def _start_agents(self) -> None:
         """Initialize every entity with isolated role-safe match metadata."""
+        # Counted from the seats rather than from `num_humans`, which a partial
+        # public start rewrites. Issued once, at the first round: refreshing it
+        # later would leak what each eliminated seat was.
+        starting_humans = sum(
+            1 for seat in self.room.seats.values() if seat.kind == "human"
+        )
+        starting_agents = sum(
+            1 for seat in self.room.seats.values() if seat.kind == "llm"
+        )
         for seat in self.room.seats.values():
             if seat.kind != "llm" or seat.agent is None:
                 continue
@@ -924,6 +933,8 @@ class GameEngine:
                     else "survive_to_terminal"
                 ),
                 protocol_version="1",
+                starting_humans=starting_humans,
+                starting_agents=starting_agents,
             )
             if self.language not in seat.agent.identity.supported_languages:
                 raise ValueError(

@@ -58,6 +58,11 @@ class AgentMatchContext:
     seat_count: int = 0
     objective: str = "survive_to_terminal"
     protocol_version: str = "1"
+    # Composition of the very first round, never refreshed. A live count of the
+    # humans left would tell an agent what each eliminated seat was, which the
+    # public view deliberately withholds until the terminal reveal.
+    starting_humans: int = 0
+    starting_agents: int = 0
 
     def __post_init__(self) -> None:
         if not self.match_id.strip():
@@ -68,6 +73,8 @@ class AgentMatchContext:
             raise ValueError("max_rounds must be positive")
         if self.seat_count < 0:
             raise ValueError("seat_count must not be negative")
+        if self.starting_humans < 0 or self.starting_agents < 0:
+            raise ValueError("starting composition must not be negative")
         object.__setattr__(self, "language", normalize_language(self.language))
 
 

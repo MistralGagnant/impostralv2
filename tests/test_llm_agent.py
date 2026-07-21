@@ -214,6 +214,36 @@ class SortieAgentTest(unittest.TestCase):
             LLMAgent("Player A", 0)._vote_task("en"),
         )
 
+    def test_le_prompt_annonce_la_composition_de_depart(self) -> None:
+        import asyncio
+
+        from app.agents.contracts import AgentMatchContext
+
+        def brief(humans: int, agents: int) -> str:
+            agent = LLMAgent("Player A", 0, hardcore=True)
+            asyncio.run(agent.start_match(AgentMatchContext(
+                match_id="m",
+                seat_id="Player A",
+                starting_humans=humans,
+                starting_agents=agents,
+            )))
+            return agent._system("en")
+
+        # Le salon est paramétrable : supposer 3+3 trompe l'agent exactement
+        # dans les parties qui s'en écartent.
+        self.assertIn("sat down with 3 humans and 3 AIs", brief(3, 3))
+        self.assertIn("sat down with 1 human and 3 AIs", brief(1, 3))
+        self.assertIn("sat down with 8 humans and 3 AIs", brief(8, 3))
+        # Jamais rafraîchi : le suivre en direct dirait ce qu'était chaque
+        # siège éliminé, ce que la vue publique cache jusqu'au verdict.
+        self.assertIn("never updated", brief(3, 3))
+        # Sans contexte de partie, aucune composition n'est inventée.
+        self.assertNotIn("sat down with", LLMAgent("Player A", 0)._system("en"))
+        # Le bulletin s'appuie sur ce chiffre au lieu d'en affirmer un faux.
+        english = LLMAgent("Player A", 0, hardcore=True)._vote_task("en")
+        self.assertIn("how many humans sat down here", english)
+        self.assertNotIn("half of this table", english)
+
     def test_le_schema_de_vote_suit_le_reglement(self) -> None:
         standard = _vote_schema(["Player B"])["json_schema"]["schema"]
         hardcore = _vote_schema(["Player B"], hardcore=True)["json_schema"]["schema"]

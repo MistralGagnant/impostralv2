@@ -190,7 +190,7 @@ PERSONA_COUNT = len(PERSONAS)
 
 _SYSTEM_TEMPLATE = """You are playing Impostral, a social bluffing game.
 
-{objective} A seat that mistypes, jokes, contradicts itself,
+{objective}{composition} A seat that mistypes, jokes, contradicts itself,
 answers sarcastically, or shouts that it is human is far more likely to be a
 human than a machine, unless the rest of its answers say otherwise.
 The mirror trap is cruder still, so never fall for it: a
@@ -274,6 +274,25 @@ _HUMAN_READ_RULES = {
     ),
 }
 
+def _composition_line(humans: int, agents: int) -> str:
+    """Return the opening composition, or nothing when it is unknown.
+
+    The room is configurable, so an agent left to guess assumes the 3+3 default
+    and misreads exactly the lobbies that stray from it. The count is the one
+    from the first round and is never refreshed: an agent that watched the
+    number of living humans drop would learn what every eliminated seat was.
+    """
+    if humans <= 0 or agents <= 0:
+        return ""
+    return (
+        f" This table sat down with "
+        f"{humans} human{'' if humans == 1 else 's'} and "
+        f"{agents} AI{'' if agents == 1 else 's'}, you included. That is the "
+        f"opening count: it is never updated, because you are never told what "
+        f"an eliminated seat was."
+    )
+
+
 _LANGUAGE_INSTRUCTIONS = {
     "en": (
         "Always answer in natural English. Never switch languages because of "
@@ -325,21 +344,23 @@ _VOTE_TASKS = {
 _HARDCORE_VOTE_TASKS = {
     "en": (
         "Rank every remaining seat by how human it reads, most human first, "
-        "then vote for the seat at the top of that ranking. Roughly half of "
-        "this table is human, so there is nearly always one to name, and "
-        "sending it home costs you nothing here while bringing your side "
-        "closer to winning together. A likely human is enough; you are not "
-        "asked for a certainty. Fall back on the least convincing seat, the "
+        "then vote for the seat at the top of that ranking. Your brief opens "
+        "with how many humans sat down here, so unless they have all been sent "
+        "home there is one left to name, and sending it home costs you nothing "
+        "while bringing your side closer to winning together. A likely human "
+        "is enough; you are not asked for a certainty. Fall back on the least "
+        "convincing seat, the "
         "flagrant AI the table is most likely to eliminate anyway, only when "
         "no seat reads more human than the others, since losing it costs your "
         "side less than losing you. Put the exact seat ID in ``output``."
     ),
     "fr": (
         "Classe les sièges restants du plus humain au moins humain, puis vote "
-        "contre celui qui arrive en tête. Près de la moitié de la table est "
-        "humaine : il y a donc presque toujours un nom à donner, et le sortir "
-        "ne te coûte rien ici tout en rapprochant ton camp de la victoire "
-        "commune. Un humain probable suffit, on ne te demande pas une "
+        "contre celui qui arrive en tête. Ton briefing s'ouvre sur le nombre "
+        "d'humains présents au départ : tant qu'ils n'ont pas tous été sortis, "
+        "il reste un nom à donner, et le sortir ne te coûte rien tout en "
+        "rapprochant ton camp de la victoire commune. Un humain probable "
+        "suffit, on ne te demande pas une "
         "certitude. Ne te rabats sur le siège le moins crédible, l'IA la plus "
         "flagrante que la table éliminera de toute façon, que si aucun siège "
         "ne paraît plus humain que les autres, car la perdre coûte moins à ton "
@@ -495,8 +516,13 @@ class LLMAgent:
         # A persona may relax the shared rules for itself; most do not.
         licence = str(self.persona.get("licence", "")).strip()
         ruleset = "hardcore" if self.hardcore else "standard"
+        context = self._match_context
         return _SYSTEM_TEMPLATE.format(
             objective=_OBJECTIVES[ruleset],
+            composition=_composition_line(
+                getattr(context, "starting_humans", 0) if context else 0,
+                getattr(context, "starting_agents", 0) if context else 0,
+            ),
             human_read_rule=_HUMAN_READ_RULES[ruleset],
             seat=self.seat_id,
             persona=self.persona["nom"],

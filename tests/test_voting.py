@@ -434,6 +434,47 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(game_over["winners"], ["Player A", "Player B"])
         self.assertIn("costs an AI the game", game_over["message"])
 
+    async def test_agents_are_briefed_with_the_real_opening_composition(
+        self,
+    ) -> None:
+        """The room is configurable, so the 3+3 default must not be assumed.
+
+        The count comes from the seats rather than from the survivors: it is
+        issued once and never refreshed, since watching the number of living
+        humans drop would tell an agent what each eliminated seat was.
+        """
+        class RecordingAgent(StubAgent):
+            def __init__(self) -> None:
+                super().__init__()
+                self.identity = SimpleNamespace(
+                    agent_id="stub", supported_languages=("en",)
+                )
+                self.context = None
+
+            async def start_match(self, context) -> None:
+                self.context = context
+
+        agents = [RecordingAgent() for _ in range(3)]
+        seats = [
+            StubSeat("Player A", "human"),
+            StubSeat("Player B", "human"),
+            *(
+                StubSeat(f"Player {letter}", "llm", agent, "mistral-small-latest")
+                for letter, agent in zip("CDE", agents)
+            ),
+        ]
+        # Une élimination antérieure ne doit pas changer le décompte transmis.
+        seats[0].alive = False
+        room = StubRoom(seats, mode="hardcore")
+        room.agent_match_id = "opaque-match"
+        engine = make_engine(room)
+
+        await engine._start_agents()
+
+        for agent in agents:
+            self.assertEqual(agent.context.starting_humans, 2)
+            self.assertEqual(agent.context.starting_agents, 3)
+
     async def test_hardcore_never_punishes_an_agent_for_hunting_a_human(
         self,
     ) -> None:

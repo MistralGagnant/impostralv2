@@ -132,6 +132,13 @@ The default room has three humans and three agents, using Large, Medium, and
 Small respectively. Agents also use different personas, temperatures, and
 persona-specific human few-shot examples from `PERSONAS` in
 `app/agents/llm_agent.py`. Personas are drawn without repetition inside a room.
+Every agent prompt also opens with the room's real starting composition, since
+`num_humans` is configurable and a private lobby or a partial public start
+strays far from the 3+3 default. `AgentMatchContext` carries it as
+`starting_humans`/`starting_agents`, issued once by `_start_agents` and counted
+from the seats rather than the survivors: a live count would tell an agent what
+each eliminated seat was, which `_public_view` withholds until the terminal
+reveal.
 A persona may carry a `licence` that relaxes the shared answer rules for itself;
 only **The Troll** does, so it may joke, answer off topic, claim to be the human
 of the table, and mistype on purpose. Guided decoding enforces a strict JSON Schema with
