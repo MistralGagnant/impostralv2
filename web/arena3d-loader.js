@@ -29,7 +29,7 @@
     return;
   }
 
-  window.ImpostralArena3DReady = import("/static/arena3d.js?v=20260721-v30")
+  window.ImpostralArena3DReady = import("/static/arena3d.js?v=20260721-v31")
     .then(({ createArena }) => createArena({ canvas, root, labels }))
     .catch((error) => {
       console.warn("3D arena unavailable; using the 2D fallback.", error);
