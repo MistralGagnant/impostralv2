@@ -145,10 +145,16 @@ two blocks of that prompt and the whole ballot instruction: the agent is told
 that the AIs are one side against the humans, that every other AI is briefed
 identically and hunting them too, that surviving is all that counts and voting
 a human out costs it nothing, and that a ballot is never spent on another AI
-while a human is still readable. It must therefore send home any seat it reads
-as human and fall back on the least convincing, most flagrant AI otherwise.
-That framing is strategic, not accounting: `_game_over` still credits only the
-AIs left alive, exactly as in a standard room. Only `output` enters the
+while a human is still readable. The tells are identical in both rulesets but
+designate opposite targets, so `_HUMAN_READ_RULES` swaps the sentence naming
+that target too: a hardcore agent is told that the too clean seats are its own
+side and that the seat leaving human traces is the one to send home. Its ballot
+asks for a ranking rather than a certainty — vote the most human-reading seat,
+a likely human being enough, and fall back on the most flagrant AI only when no
+seat reads more human than the others. Demanding a seat that *clearly* stood
+out let a cautious model take that fallback every round. This whole framing is
+strategic, not accounting: `_game_over` still credits only the AIs left alive,
+exactly as in a standard room. Only `output` enters the
 transcript. Mock-mode agents
 use card-specific scripted answers instead of unrelated persona examples,
 rotated on the seat's rank among the room's agents through

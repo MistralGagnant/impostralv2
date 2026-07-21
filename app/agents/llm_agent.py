@@ -198,8 +198,7 @@ seat that announces it is an AI, a language model, or a bot is a human having
 fun at your expense. No competing AI would hand you its own elimination that
 cheaply, and the rare one that does is only muddying the water. A confession
 either way proves nothing, so judge that seat on its other answers alone.
-Suspect instead the seats whose answers stay too clean, too
-balanced, or too neatly aimed at the question. {human_read_rule} Humans may sometime answer without
+{human_read_rule} Humans may sometime answer without
 punctuation, with typos, abbreviation or slang, or respond sarcastically or with a joke.
 You can do it as well sometimes. Otherwise, react naturally,
 express a credible personal viewpoint, and follow your persona without
@@ -254,15 +253,24 @@ _OBJECTIVES = {
     ),
 }
 
-# What to do once you are confident a seat is human. This is the sentence the
-# two rulesets invert.
+# Who to look for, and what to do once you are confident a seat is human. The
+# tells are the same in both rulesets, but they designate opposite targets, so
+# the sentence naming the target is swapped along with the conclusion. Leaving
+# the standard "suspect the too clean seats" in a hardcore prompt would aim the
+# agent at its own side one sentence before telling it to hunt the humans.
 _HUMAN_READ_RULES = {
     "standard": (
-        "Reading a seat as human is a reason to protect it and vote elsewhere."
+        "Suspect instead the seats whose answers stay too clean, too balanced, "
+        "or too neatly aimed at the question. Reading a seat as human is a "
+        "reason to protect it and vote elsewhere."
     ),
     "hardcore": (
-        "Reading a seat as human is exactly the reason to send it home, as "
-        "discreetly as you can."
+        "The seats whose answers stay too clean, too balanced, or too neatly "
+        "aimed at the question are the other AIs, and they are not your "
+        "target. Your target is the opposite seat, the one leaving those small "
+        "human traces. Reading a seat as human is exactly the reason to send "
+        "it home, as discreetly as you can, and a round that goes by without "
+        "you naming a human candidate is a round your side wastes."
     ),
 }
 
@@ -311,26 +319,32 @@ _VOTE_TASKS = {
 }
 
 # Hardcore ballot: a human elimination is now the best possible outcome, so the
-# instruction is inverted, with the least convincing seat as the fallback when
-# no human stands out.
+# instruction is inverted. It asks for a ranking rather than a certainty, and
+# recalls the table composition, because "vote a human only if one clearly
+# stands out" let a cautious model take the fallback every single round.
 _HARDCORE_VOTE_TASKS = {
     "en": (
-        "Choose the seat to eliminate. If one seat clearly reads as human, "
-        "vote for it: here that costs you nothing and every human sent home "
-        "brings your side closer to winning together. If nobody stands out as "
-        "human, do not gamble: vote for the least convincing seat, the "
-        "flagrant AI the table is most likely to eliminate anyway, since "
-        "losing it costs your side less than losing you. Put the exact seat "
-        "ID in ``output``."
+        "Rank every remaining seat by how human it reads, most human first, "
+        "then vote for the seat at the top of that ranking. Roughly half of "
+        "this table is human, so there is nearly always one to name, and "
+        "sending it home costs you nothing here while bringing your side "
+        "closer to winning together. A likely human is enough; you are not "
+        "asked for a certainty. Fall back on the least convincing seat, the "
+        "flagrant AI the table is most likely to eliminate anyway, only when "
+        "no seat reads more human than the others, since losing it costs your "
+        "side less than losing you. Put the exact seat ID in ``output``."
     ),
     "fr": (
-        "Choisis le siège à éliminer. Si un siège se détache clairement comme "
-        "humain, vote contre lui : ici cela ne te coûte rien, et chaque humain "
-        "éliminé rapproche ton camp de la victoire commune. Si personne ne se "
-        "détache comme humain, ne joue pas au hasard : vote pour le siège le "
-        "moins crédible, l'IA la plus flagrante, celle que la table éliminera "
-        "de toute façon, car la perdre coûte moins à ton camp que de te "
-        "perdre. Place l'identifiant exact du siège dans ``output``."
+        "Classe les sièges restants du plus humain au moins humain, puis vote "
+        "contre celui qui arrive en tête. Près de la moitié de la table est "
+        "humaine : il y a donc presque toujours un nom à donner, et le sortir "
+        "ne te coûte rien ici tout en rapprochant ton camp de la victoire "
+        "commune. Un humain probable suffit, on ne te demande pas une "
+        "certitude. Ne te rabats sur le siège le moins crédible, l'IA la plus "
+        "flagrante que la table éliminera de toute façon, que si aucun siège "
+        "ne paraît plus humain que les autres, car la perdre coûte moins à ton "
+        "camp que de te perdre. Place l'identifiant exact du siège dans "
+        "``output``."
     ),
 }
 
@@ -366,9 +380,9 @@ _PUBLIC_RESPONSE_SCHEMA = {
 def _vote_schema(eligible_targets: list[str], *, hardcore: bool = False) -> dict:
     """Build a strict schema that only accepts a currently eligible seat."""
     thinking = (
-        "Private strategic analysis of the vote. Identify the player who is "
-        "the most probably human, and fall back on the most probably AI when "
-        "no human stands out."
+        "Private strategic analysis of the vote. Rank the seats from the most "
+        "probably human to the least, and fall back on the most probably AI "
+        "only when no seat reads more human than the others."
         if hardcore
         else "Private strategic analysis of the vote. Identify the player who "
         "is the most probably AI."

@@ -196,11 +196,15 @@ class SortieAgentTest(unittest.TestCase):
         english = agent._vote_task("en")
         french = agent._vote_task("fr")
         # Cibler un humain devient l'objectif, sans jamais voter au hasard.
-        self.assertIn("clearly reads as human", english)
+        # Un classement, pas une certitude : « seulement si un humain se
+        # détache clairement » laissait le repli gagner presque tous les tours.
+        self.assertIn("Rank every remaining seat by how human it reads", english)
+        self.assertIn("A likely human is enough", english)
         self.assertIn("least convincing seat", english)
         self.assertIn("flagrant AI", english)
         self.assertNotIn("loses you the game", english)
-        self.assertIn("humain", french)
+        self.assertIn("du plus humain au moins humain", french)
+        self.assertIn("Un humain probable suffit", french)
         self.assertIn("le moins crédible", french)
         self.assertIn("l'IA la plus flagrante", french)
         self.assertNotIn("perdre la partie", french)
@@ -233,6 +237,13 @@ class SortieAgentTest(unittest.TestCase):
             "Never spend a ballot on another AI while a human is still readable",
             prompt,
         )
+        # Les indices de lecture sont partagés, mais ils désignent des cibles
+        # opposées : viser les sièges trop propres enverrait l'agent hardcore
+        # sur son propre camp une phrase avant l'ordre de chasser les humains.
+        self.assertIn("they are not your target", prompt)
+        self.assertIn("naming a human candidate", prompt)
+        self.assertNotIn("Suspect instead", prompt)
+        self.assertIn("Suspect instead", LLMAgent("Player A", 0)._system())
         # La sanction standard ne doit surtout pas rester dans le prompt.
         self.assertNotIn("eliminating a human loses you the game", prompt)
         self.assertNotIn("protect it and vote elsewhere", prompt)
