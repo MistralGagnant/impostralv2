@@ -199,7 +199,7 @@ def _vote_schema(eligible_targets: list[str]) -> dict:
                 "properties": {
                     "thinking": {
                         "type": "string",
-                        "description": "Private strategic analysis of the vote.",
+                        "description": "Private strategic analysis of the vote. Identify the player who is the most probably AI.",
                         "maxLength": 800,
                     },
                     "output": {
@@ -431,14 +431,13 @@ class LLMAgent:
             public_context = request.view.as_json()
             if language == "fr":
                 task = (
-                    "Choisis un siège concurrent à éliminer. Évalue qui menace ta "
-                    "survie ou paraît le moins humain, puis place l'identifiant "
+                    "Choisis un siège concurrent à éliminer. Évalue qui paraît le moins humain, puis place l'identifiant "
                     "exact du siège dans `output`."
                 )
             else:
                 task = (
-                    "Choose one competing seat to eliminate. Consider who threatens "
-                    "your survival or appears least human, then put the exact seat "
+                    "Choose one competing seat to eliminate. Consider who "
+                    "appears least human, then put the exact seat "
                     "ID in `output`."
                 )
             prompt = (
@@ -457,8 +456,8 @@ class LLMAgent:
             prompt = (
                 f"Full transcript:\n{request}\n\n"
                 f"Vote phase. Eligible seats: {', '.join(targets)}.\n"
-                "Choose one competing seat to eliminate. Consider who threatens "
-                "your survival or appears least human, then put the exact seat ID "
+                "Choose one competing seat to eliminate. Consider who "
+                "appears least human, then put the exact seat ID "
                 "in ``output``."
             )
         if not targets:
