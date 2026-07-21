@@ -141,7 +141,13 @@ The project targets **`mistralai` 2.x**, whose structure differs from 1.x:
   file={"file_name","content","content_type"})` returns
   `TranscriptionResponse.text`.
 - Voices: `client.audio.voices.list(type_="preset")` returns voices with UUID
-identifiers. `app/audio/voices.py` builds a room-language-first pool.
+identifiers. `app/audio/voices.py` serves the room language first, so a French
+room does not read French with an English accent. Presets ship a single French
+speaker, so a full French room reuses their emotional variants instead of
+borrowing English speakers. Exactly one foreign speaker is invited right after
+the room-language speakers, on purpose: the accent is part of the fun and both
+languages keep one. Only the seats' slice of that pool is shuffled in
+`setup_seats`.
 
 The STT and TTS wrappers degrade gracefully to text-only play when calls fail.
 
@@ -176,7 +182,7 @@ seats.
 | `app/agents/contracts.py` | Immutable public view and versioned autonomous-player protocol. |
 | `app/agents/registry.py` | Trusted local provider registry and native Mistral factory. |
 | `app/audio/stt.py` / `tts.py` | Voxtral wrappers with graceful fallback. |
-| `app/audio/voices.py` | Cached preset voice pool with distinct speakers. |
+| `app/audio/voices.py` | Cached preset voice pool, room language first. |
 | `app/audio/store.py` | Ephemeral FIFO audio store served from `/audio/{id}`. |
 | `web/` | 3D arena, adaptive Web Audio, model statistics dashboard, and phase UI. |
 

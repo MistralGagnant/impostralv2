@@ -1,8 +1,14 @@
 """Build the TTS voice pool from Voxtral preset voices.
 
-Preset voices are fetched once and cached. The pool keeps one voice per speaker,
-prefers neutral variants, and places the target language first. Mock mode and
-network failures return `settings.voice_pool`, allowing graceful text-only play.
+Preset voices are fetched once and cached. The target language comes first — a
+French room must not read French with an English accent — and inside a language
+the pool keeps one voice per speaker, preferring neutral variants, before
+falling back to the remaining variants. Presets currently offer a single French
+speaker, so a full French room reuses their emotional variants rather than
+borrowing English speakers. One foreign speaker is deliberately invited right
+after the room-language speakers: a French voice reading English, or the
+reverse, is a wanted flavour, not an accident. Mock mode and network failures
+return `settings.voice_pool`, allowing graceful text-only play.
 """
 from __future__ import annotations
 
@@ -15,6 +21,33 @@ from ..mistral_client import get_client
 log = logging.getLogger("impostral.voices")
 
 _NEUTRAL_HINTS = ("neutral", "balanced", "neutre")
+
+
+def _speaker(item: dict) -> str:
+    """Return the speaker name shared by every emotional variant."""
+    return str(item.get("name", "")).split(" - ")[0].strip() or str(item.get("id"))
+
+
+def _is_neutral(item: dict) -> bool:
+    tags = " ".join(item.get("tags", [])).lower() + " " + str(item.get("name", "")).lower()
+    return any(hint in tags for hint in _NEUTRAL_HINTS)
+
+
+def _heads_and_rest(items: list[dict]) -> tuple[list[str], list[str]]:
+    """Split into one voice per speaker, then the remaining variants."""
+    heads: dict[str, dict] = {}
+    for item in items:
+        current = heads.get(_speaker(item))
+        if current is None or (_is_neutral(item) and not _is_neutral(current)):
+            heads[_speaker(item)] = item
+
+    def by_name(item: dict) -> str:
+        return str(item.get("name", ""))
+
+    head_ids = [it["id"] for it in sorted(heads.values(), key=by_name) if it.get("id")]
+    head_set = set(head_ids)
+    rest = [it for it in items if it.get("id") and it["id"] not in head_set]
+    return head_ids, [it["id"] for it in sorted(rest, key=by_name)]
 
 
 @lru_cache
@@ -38,33 +71,29 @@ def _preset_voice_ids(prefix: str = "en") -> tuple[str, ...]:
         log.warning("Could not list preset voices: %s", exc)
         return ()
 
-    # Group variants by speaker name and prefer a neutral variant.
-    by_speaker: dict[str, dict] = {}
-    for it in items:
-        speaker = str(it.get("name", "")).split(" - ")[0].strip() or it.get("id")
-        cur = by_speaker.get(speaker)
-        tags = " ".join(it.get("tags", [])).lower() + " " + str(it.get("name", "")).lower()
-        is_neutral = any(h in tags for h in _NEUTRAL_HINTS)
-        if cur is None or (is_neutral and not cur["_neutral"]):
-            by_speaker[speaker] = {**it, "_neutral": is_neutral}
-
     def lang_ok(it: dict) -> bool:
         return any(str(l).startswith(prefix) for l in (it.get("languages") or []))
 
-    # First choices: one distinct speaker each, target language first.
-    heads = list(by_speaker.values())
-    heads.sort(key=lambda it: (not lang_ok(it), str(it.get("name", ""))))
-    head_ids = [it["id"] for it in heads if it.get("id")]
+    matching_heads, matching_rest = _heads_and_rest(
+        [it for it in items if lang_ok(it)]
+    )
+    foreign_heads, foreign_rest = _heads_and_rest(
+        [it for it in items if not lang_ok(it)]
+    )
 
-    # Reserve: remaining variants prevent immediate reuse when there are more
-    # seats than distinct speakers.
-    head_set = set(head_ids)
-    rest = [it for it in items if it.get("id") and it["id"] not in head_set]
-    rest.sort(key=lambda it: (not lang_ok(it), str(it.get("name", ""))))
-    ids = head_ids + [it["id"] for it in rest]
+    # The room language otherwise comes first, variants included: a French room
+    # reuses its single speaker's moods rather than sounding English. Only the
+    # invited speaker crosses the language line early.
+    ids = (
+        matching_heads
+        + foreign_heads[:1]
+        + matching_rest
+        + foreign_heads[1:]
+        + foreign_rest
+    )
 
-    log.info("Preset voice pool: %d distinct speakers, %d voices total (%s first)",
-             len(head_ids), len(ids), prefix)
+    log.info("Preset voice pool: %d voices in %s, %d voices total",
+             len(matching_heads) + len(matching_rest), prefix, len(ids))
     return tuple(ids)
 
 

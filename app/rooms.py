@@ -159,10 +159,14 @@ class Room:
 
         settings = get_settings()
         letters = list(string.ascii_uppercase)
-        voices = voices_mod.get_pool(self.language)
-        random.shuffle(voices)
-
         total = self.num_humans + self.num_llms
+
+        # The pool is ordered by language, so only the seats' slice is shuffled:
+        # shuffling the whole pool would hand a French room English voices.
+        pool = voices_mod.get_pool(self.language)
+        seat_voices = [pool[index % len(pool)] for index in range(total)]
+        random.shuffle(seat_voices)
+
         kinds = ["human"] * self.num_humans + ["llm"] * self.num_llms
         random.shuffle(kinds)  # Mix human and LLM seats.
 
@@ -182,7 +186,7 @@ class Room:
         agent_index = 0
         for i in range(total):
             sid = f"Player {letters[i]}"
-            voice = voices[i % len(voices)]
+            voice = seat_voices[i]
             kind = kinds[i]
             seat = Seat(id=sid, kind=kind, voice=voice)
             if kind == "llm":
