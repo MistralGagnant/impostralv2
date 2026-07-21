@@ -1576,6 +1576,7 @@ body[data-phase="game_over"] .question-frame { display: none; }
   --result-accent: #ff5229;
   --result-soft: rgba(225, 19, 0, 0.18);
 }
+.result-overlay[data-outcome="draw"],
 .result-overlay[data-outcome="neutral"] {
   --result-accent: var(--orange);
   --result-soft: rgba(255, 130, 4, 0.16);

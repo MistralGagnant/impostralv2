@@ -911,6 +911,7 @@ export function createArena({ canvas, root, labels }) {
    *   winners: string[],
    *   roles: Record<string, "human" | "llm">,
    *   models?: Record<string, string>,
+   *   outcome?: "win" | "lose" | "draw",
    *   you?: string,
    *   seats?: SeatSnapshot[],
    *   message?: string,
@@ -941,13 +942,18 @@ export function createArena({ canvas, root, labels }) {
     const inferredYou = [...seatObjects.values()].find((record) => record.state.you)?.id || "";
     const you = typeof payload.you === "string" ? payload.you : inferredYou;
     const winner = typeof payload.winner === "string" ? payload.winner : "none";
-    const outcome = !you
-      ? "spectate"
-      : winner === "none" || winners.length === 0
-        ? "draw"
-        : winners.includes(you)
-          ? "win"
-          : "lose";
+    // The caller reads the verdict from the human side, which is the only
+    // reading that makes sense on screen; the fallback stays seat-based.
+    const declared = typeof payload.outcome === "string" ? payload.outcome : "";
+    const outcome = ["win", "lose", "draw"].includes(declared)
+      ? declared
+      : !you
+        ? "spectate"
+        : winner === "none" || winners.length === 0
+          ? "lose"
+          : winners.includes(you)
+            ? "win"
+            : "lose";
 
     resultState.active = true;
     resultState.winner = winner;

@@ -255,6 +255,43 @@ class WebUiTest(unittest.TestCase):
         self.assertIn(".result-player.is-winner", css)
         self.assertIn("@media (prefers-reduced-motion: reduce)", css)
 
+    def test_final_verdict_is_read_from_the_human_side(self) -> None:
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        arena_js = (ROOT / "web" / "arena3d.js").read_text(encoding="utf-8")
+        i18n_js = (ROOT / "web" / "i18n.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
+
+        # Victoire, défaite ou égalité : jamais un « Résultat » neutre.
+        self.assertIn("function humanOutcome(msg)", app_js)
+        self.assertIn("const outcome = humanOutcome(msg);", app_js)
+        self.assertNotIn("result.complete", app_js)
+        self.assertNotIn('"result.complete"', i18n_js)
+
+        # Une table vidée de ses humains est une défaite, même quand chaque IA
+        # encore assise a perdu en faisant éliminer un humain.
+        self.assertIn(
+            'if (!humanSeats.some((seat) => seat.alive)) return "lose";', app_js
+        )
+        # L'égalité exige plusieurs humains au départ, un survivant humain et
+        # une IA survivante ; sinon un humain en vie signe une victoire.
+        self.assertIn(
+            'return agentAlive && humanSeats.length > 1 ? "draw" : "win";', app_js
+        )
+
+        # Le décor 3D, la partition et le bandeau suivent la même lecture.
+        self.assertIn('["win", "lose", "draw"].includes(declared)', arena_js)
+        self.assertIn('outcome === "win"\n        ? "human"', app_js)
+        self.assertIn('.result-overlay[data-outcome="draw"],', css)
+
+        keys = (
+            "result.tie",
+            "result.tie_title",
+            "result.duel_solo_title",
+            "result.humans_survived_title",
+        )
+        for key in keys:
+            self.assertEqual(i18n_js.count(f'"{key}":'), 2, key)
+
     def test_microphone_is_released_and_preserves_its_media_type(self) -> None:
         audio_js = (ROOT / "web" / "audio.js").read_text(encoding="utf-8")
         app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")

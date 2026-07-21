@@ -1876,7 +1876,26 @@
     }, 4300);
   }
 
-  function resultHeadline(msg) {
+  function humanOutcome(msg) {
+    // The result screen is always read from the human side: every viewer holds
+    // a human seat, so the verdict only ever says victory, defeat, or draw.
+    const roles = msg.roles || {};
+    const roleOf = (seat) => roles[seat.id] || seat.role;
+    const humanSeats = seats.filter((seat) => roleOf(seat) === "human");
+    // An empty table is a defeat even when the AIs lost their own game by
+    // hunting humans, because no human is left to claim anything.
+    if (!humanSeats.some((seat) => seat.alive)) return "lose";
+    // Every AI still seated had voted a human out, so the humans took it.
+    if (msg.winner === "humans") return "win";
+    const agentAlive = seats.some(
+      (seat) => roleOf(seat) === "llm" && seat.alive
+    );
+    // Surviving next to an AI is only a draw when other humans were there to
+    // be saved; alone, reaching that duel is the best the table allows.
+    return agentAlive && humanSeats.length > 1 ? "draw" : "win";
+  }
+
+  function resultHeadline(msg, outcome) {
     if (msg.winner === "humans") {
       // Humans also win when every surviving AI was caught voting a human out,
       // which is not the clean sweep the default title announces.
@@ -1884,7 +1903,16 @@
         ? t("result.humans_title")
         : t("result.humans_hunted_title");
     }
-    if (msg.winner === "draw") return t("result.draw_title");
+    if (msg.winner === "draw") {
+      // Only a table that had other humans to save can end on a tie; a lone
+      // human reaching the duel got everything the rules allow them.
+      return outcome === "draw"
+        ? t("result.draw_title")
+        : t("result.duel_solo_title");
+    }
+    // Humans still seated when the agents claimed the round limit.
+    if (outcome === "draw") return t("result.tie_title");
+    if (outcome === "win") return t("result.humans_survived_title");
     if (msg.winner === "agents") {
       return (msg.winners || []).length === 1
         ? t("result.agent_title")
@@ -1953,9 +1981,7 @@
 
   function showResult(msg, { focus = true } = {}) {
     const winners = new Set(msg.winners || []);
-    const hasPersonalResult = Boolean(you) && msg.winner !== "none";
-    const didWin = hasPersonalResult && winners.has(you);
-    const outcome = hasPersonalResult ? (didWin ? "win" : "lose") : "neutral";
+    const outcome = humanOutcome(msg);
     const personalSeat = seats.find((seat) => seat.id === you);
     const winnerIds = [...winners];
     const resultText = displayText(msg.message) || (winnerIds.length === 1
@@ -1971,8 +1997,8 @@
       ? t("result.victory")
       : outcome === "lose"
         ? t("result.defeat")
-        : t("result.complete");
-    resultTitle.textContent = resultHeadline(msg);
+        : t("result.tie");
+    resultTitle.textContent = resultHeadline(msg, outcome);
     resultSummary.textContent = resultText;
     resultReason.textContent = resultReasonCopy(msg.reason);
     resultYourRole.textContent = personalSeat?.role
@@ -2018,10 +2044,12 @@
     }));
     renderSeats();
 
+    const outcome = humanOutcome(msg);
     const arenaPayload = {
       ...msg,
       phase: "game_over",
       prompt: t("phase.hunt_over"),
+      outcome,
       you,
       seats: seats.map((seat, index) => ({
         ...seat,
@@ -2035,17 +2063,15 @@
     else arena3d?.gameOver?.(arenaPayload);
 
     if (firstGameOver) {
-      // A shared final duel is a victory for everyone still at the table, so
-      // play the viewer's own winning score rather than a neutral draw cue.
-      const soundtrack = msg.winner === "humans"
+      // The score follows the same human reading as the verdict: the open
+      // fifth is kept for the shared duel, never for a wiped-out table.
+      const soundtrack = outcome === "win"
         ? "human"
-        : msg.winner === "agents"
+        : outcome === "lose"
           ? "agent"
-          : msg.winner === "draw"
-            ? ((msg.roles || {})[you] === "llm" ? "agent" : "human")
-            : "draw";
+          : "draw";
       if (!S?.playResult?.(soundtrack)) {
-        S?.play((msg.winners || []).includes(you) ? "win" : "lose");
+        S?.play(outcome === "lose" ? "lose" : "win");
       }
     }
 

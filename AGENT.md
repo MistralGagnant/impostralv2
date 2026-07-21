@@ -103,7 +103,13 @@ that reconnects. Humans win as one side when all agents are exposed, including
 humans eliminated earlier; every surviving agent is still an independent
 winner. The browser renders the verdict as an accessible result dialog with
 role/model reveals, replay/menu actions, a Three.js result state, and a finite
-outcome-specific score through `ImpostralSound.playResult()`.
+outcome-specific score through `ImpostralSound.playResult()`. That dialog is
+always read from the human side, never as a neutral report: no surviving human
+is a **defeat**, even when every remaining AI lost by hunting humans; a draw is
+announced only when a room that started with several humans ends with both a
+human and an AI still seated; any other surviving human is a **victory**,
+including the lone player who reaches the shared final duel. The headline, the
+3D theme, and the score all follow that same reading.
 
 ## Default Mistral models (`app/config.py`)
 

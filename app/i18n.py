@@ -52,7 +52,10 @@ _COPY: dict[str, dict[str, str]] = {
             "The humans have won. Every AI still hidden had voted a human out, "
             "which costs an AI the game."
         ),
-        "no_winner": "No winner could be determined.",
+        "no_winner": (
+            "No human survived, and every AI left standing had voted a human "
+            "out, which costs an AI the game. Nobody wins."
+        ),
         "game_over": "Game over. {result}",
         "internal_error": "An internal error interrupted the game.",
         "starting_humans": "Starting with {count} human player{plural}.",
@@ -103,7 +106,10 @@ _COPY: dict[str, dict[str, str]] = {
             "Les humains ont gagné. Chaque IA encore cachée avait fait "
             "éliminer un humain, ce qui lui coûte la partie."
         ),
-        "no_winner": "Aucun vainqueur n’a pu être déterminé.",
+        "no_winner": (
+            "Aucun humain n’a survécu, et chaque IA encore en jeu avait fait "
+            "éliminer un humain, ce qui lui coûte la partie. Personne ne gagne."
+        ),
         "game_over": "Fin de partie. {result}",
         "internal_error": "Une erreur interne a interrompu la partie.",
         "starting_humans": "La partie commence avec {count} joueur{plural} humain{plural}.",
