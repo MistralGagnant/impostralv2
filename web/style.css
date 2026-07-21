@@ -901,6 +901,15 @@ body[data-screen="join"] input:focus {
   border-color: #ff8204;
   box-shadow: 0 0 0 1px #ff8204;
 }
+/* Code de salon manquant en mode « rejoindre » : le rouge doit survivre au
+   focus, le champ reste invalide tant qu'il est vide. */
+input.field-missing,
+body[data-screen="join"] input.field-missing,
+body[data-screen="join"] input.field-missing:focus {
+  border-color: #ff4d4d;
+  box-shadow: 0 0 0 1px #ff4d4d;
+}
+input.field-missing::placeholder { color: #ff8a8a; opacity: 1; }
 body[data-screen="join"] .mode-switch button,
 body[data-screen="join"] #join-btn {
   border: 1px solid var(--landing-border);
@@ -995,17 +1004,32 @@ body[data-screen="join"] .carousel-floor {
   box-shadow: 0 16px 0 rgba(245, 244, 239, 0.05);
   transform: translateX(-50%) skewX(-35deg);
 }
+/* Légende, pas commande : sur cette landing le remplissage plein signale le
+   cliquable (bouton d'entrée, onglet actif, langue cochée). On reprend donc la
+   grammaire d'annotation du kicker — mono capitale + carré orange, sans fond —
+   en miroir diagonal de celui-ci. */
 body[data-screen="join"] .stage-caption {
   position: absolute;
   right: 5%;
   bottom: 4%;
   z-index: 8;
   margin: 0;
-  padding: 8px 10px;
-  background: var(--landing-text);
-  color: var(--landing-surface);
+  padding: 0;
+  background: transparent;
+  color: #fa500f;
   font-family: var(--mono);
   font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+body[data-screen="join"] .stage-caption::before {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  background: #fa500f;
+  content: "";
 }
 body[data-screen="join"] .hackathon-credit {
   display: flex;

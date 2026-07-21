@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260721-v14"
+ASSET_VERSION = "20260721-v18"
 
 
 class WebUiTest(unittest.TestCase):
@@ -58,9 +58,25 @@ class WebUiTest(unittest.TestCase):
     def test_codename_is_explicitly_optional(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn('data-i18n="landing.codename">Codename', html)
-        self.assertIn('data-i18n="landing.codename_note">optional · private', html)
+        self.assertIn('data-i18n="landing.codename">Pseudo', html)
+        self.assertIn('data-i18n="landing.codename_note">(optional)', html)
         self.assertNotIn('id="name-input" required', html)
+
+    def test_lobby_code_is_generated_and_required_when_joining(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        i18n = (ROOT / "web" / "i18n.js").read_text(encoding="utf-8")
+
+        # Le champ part vide dans le HTML : c'est app.js qui tire le code.
+        self.assertIn('id="room-input" type="text" value=""', html)
+        self.assertIn("function randomLobbyCode()", app_js)
+        self.assertIn("ABCDEFGHIJKLMNOPQRSTUVWXYZ", app_js)
+        self.assertIn("roomInput.value = generatedLobbyCode", app_js)
+        # Rejoindre : champ vide signalé, bouton verrouillé tant qu'il l'est.
+        self.assertIn('roomInput.classList.toggle("field-missing", missing)', app_js)
+        self.assertIn("joinBtn.disabled = missing", app_js)
+        self.assertIn('"landing.lobby_code_ask": "ask it to your friend"', i18n)
+        self.assertIn('"landing.lobby_code_ask": "à remplir"', i18n)
 
     def test_landing_leads_with_the_game_mechanic_and_one_primary_entry(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

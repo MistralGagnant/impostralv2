@@ -393,10 +393,44 @@
   // ------------------------------------------------------------------
   // Lobby mode: create a new lobby or join an existing one by name.
   // ------------------------------------------------------------------
+  const roomInput = $("room-input");
+
+  // Le code de salon se dicte à l'oral entre amis : 5 lettres majuscules, sans
+  // chiffres ni casse mixte, tirées une fois pour toute la visite.
+  function randomLobbyCode() {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let code = "";
+    for (let i = 0; i < 5; i += 1) {
+      code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    return code;
+  }
+  const generatedLobbyCode = randomLobbyCode();
+  roomInput.value = generatedLobbyCode;
+
+  // En mode « rejoindre », le code ne peut venir que de l'hôte : champ vide,
+  // encadré en rouge, et bouton d'entrée verrouillé tant qu'il l'est.
+  function syncRoomField() {
+    const joining = mode === "join";
+    const missing = joining && !roomInput.value.trim();
+    roomInput.placeholder = joining ? t("landing.lobby_code_ask") : "";
+    roomInput.classList.toggle("field-missing", missing);
+    roomInput.setAttribute("aria-invalid", String(missing));
+    if (!admissionInFlight) joinBtn.disabled = missing;
+  }
+
   let mode = "create";
   function setMode(next) {
+    const changed = mode !== next;
     mode = next;
     const creating = mode === "create";
+    if (changed) {
+      if (creating) {
+        if (!roomInput.value.trim()) roomInput.value = generatedLobbyCode;
+      } else if (roomInput.value.trim() === generatedLobbyCode) {
+        roomInput.value = "";
+      }
+    }
     modeCreate.setAttribute("aria-selected", String(creating));
     modeJoin.setAttribute("aria-selected", String(!creating));
     humansField.classList.toggle("hidden", !creating);
@@ -404,9 +438,12 @@
       ? t("landing.create_enter")
       : t("landing.join");
     joinHint.textContent = "";
+    syncRoomField();
   }
+  roomInput.addEventListener("input", syncRoomField);
   modeCreate.addEventListener("click", () => setMode("create"));
   modeJoin.addEventListener("click", () => setMode("join"));
+  setMode(mode);
   for (const button of languageButtons) {
     button.addEventListener("click", () => {
       if (admissionInFlight) return;
@@ -495,6 +532,7 @@
     joinBtn.querySelector("span").textContent = mode === "create"
       ? t("landing.create_enter")
       : t("landing.join");
+    syncRoomField();
   }
 
   function entrySoundIsRelevant(generation) {
@@ -557,7 +595,7 @@
   }
 
   async function enterRoom() {
-    const room = ($("room-input").value || "lobby").trim();
+    const room = (roomInput.value || "").trim();
     if (!room) { joinHint.textContent = t("entry.room_required"); return; }
 
     const admission = beginAdmission(joinBtn);
