@@ -285,6 +285,7 @@
     audio.playbackRate = playbackRate;
     const playback = {
       audio,
+      url,
       attempt: null,
       blocked: false,
       completed: false,
@@ -365,8 +366,27 @@
     return playing;
   }
 
+  // Where the current voice clip stands, so the caller can pace a progressive
+  // text reveal on the voice itself instead of guessing a typing speed.
+  // `url` identifies the clip: the queue may already have moved on to the next
+  // seat, and a caller must never pace one seat's line on another's voice.
+  function playbackProgress() {
+    const playback = currentPlayback;
+    if (!playback || playback.completed) return null;
+    const duration = Number(playback.audio.duration);
+    return {
+      url: playback.url,
+      started: Boolean(playback.voiceStarted),
+      blocked: Boolean(playback.blocked),
+      rate: playbackRate,
+      currentTime: Number(playback.audio.currentTime) || 0,
+      duration: Number.isFinite(duration) && duration > 0 ? duration : 0,
+    };
+  }
+
   window.ImpostralAudio = {
     startRecording, stopRecording, cancelRecording, isRecording,
     enqueue, unlockPlayback, retryPlayback, cancelPlayback, isPlaying, setPlaybackRate,
+    playbackProgress,
   };
 })();

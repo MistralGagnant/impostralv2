@@ -717,6 +717,18 @@ export function createArena({ canvas, root, labels }) {
     applyResultLabel(record);
   }
 
+  // Cheap per-frame path for the progressive answer reveal: only the speaking
+  // seat's text changes, so a full sync() (every label + positionSeats) would
+  // be wasted work sixty times a second.
+  function setSeatAnswer(id, text = "") {
+    const record = seatObjects.get(id);
+    if (!record) return;
+    record.state = { ...(record.state || {}), answer: text };
+    record.dom.answer.textContent = text;
+    record.dom.label.classList.toggle("has-answer", Boolean(text));
+    requestRender();
+  }
+
   function sync(snapshot = {}) {
     const incoming = Array.isArray(snapshot.seats) ? snapshot.seats : [];
     const incomingIds = new Set(incoming.map((seat) => seat.id));
@@ -961,6 +973,8 @@ export function createArena({ canvas, root, labels }) {
     setActive(false);
   }
 
+  const LABEL_MARGIN = 6;
+
   function updateLabels() {
     const width = root.clientWidth;
     const height = root.clientHeight;
@@ -976,8 +990,16 @@ export function createArena({ canvas, root, labels }) {
         || Math.abs(worldPoint.y) > 1.15;
       record.dom.label.hidden = offscreen;
       if (offscreen) continue;
-      const x = (worldPoint.x * 0.5 + 0.5) * width;
-      const y = (-worldPoint.y * 0.5 + 0.5) * height;
+      let x = (worldPoint.x * 0.5 + 0.5) * width;
+      let y = (-worldPoint.y * 0.5 + 0.5) * height;
+      // Keep the whole tag inside the arena, which clips its overflow: a seat
+      // near an edge would otherwise have its answer cut off by the container
+      // rather than by any style rule. Tags are centred on their anchor, so the
+      // clamp works on half-extents.
+      const halfW = record.dom.label.offsetWidth / 2;
+      const halfH = record.dom.label.offsetHeight / 2;
+      x = Math.min(Math.max(x, halfW + LABEL_MARGIN), width - halfW - LABEL_MARGIN);
+      y = Math.min(Math.max(y, halfH + LABEL_MARGIN), height - halfH - LABEL_MARGIN);
       record.dom.label.style.transform =
         `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
     }
@@ -1262,6 +1284,7 @@ export function createArena({ canvas, root, labels }) {
     setActive,
     setPhase,
     setAnswerTurn,
+    setSeatAnswer,
     setSpeaking,
     setVoteTargets,
     setSelected,

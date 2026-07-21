@@ -2025,14 +2025,11 @@ body[data-screen="game"] .arena-viz {
   color: #f4cda2;
   font-size: clamp(0.56rem, 0.74vw, 0.72rem);
   line-height: 1.36;
-  overflow: hidden;
   overflow-wrap: anywhere;
-  /* Idle seats keep a compact two-line trace; the speaker expands below. */
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
-.arena-tag.has-answer .arena-tag-answer { display: -webkit-box; }
+/* No clamp, in any state: comparing answers is the game, and a server-side
+   answer is one sentence of at most 100 characters — it fits. */
+.arena-tag.has-answer .arena-tag-answer { display: block; }
 .arena-tag-votes {
   display: none;
   margin-top: 5px;
@@ -2068,12 +2065,14 @@ body[data-screen="game"] .arena-viz {
    it rises above neighbouring tags and shows its full line as a speech bubble. */
 .arena-tag.is-answering,
 .arena-tag.is-speaking { z-index: 8; }
+/* The seat holding the floor gets a wider bubble: same full text as the others,
+   laid out on fewer lines and read first. */
+.arena-tag.is-answering,
+.arena-tag.is-speaking { width: clamp(210px, 24vw, 330px); }
 .arena-tag.is-answering .arena-tag-answer,
 .arena-tag.is-speaking .arena-tag-answer {
   color: #fff4e2;
   font-size: clamp(0.64rem, 0.9vw, 0.82rem);
-  -webkit-line-clamp: 5;
-  line-clamp: 5;
 }
 .arena-tag.is-answering::after,
 .arena-tag.is-speaking::after {
@@ -2297,8 +2296,10 @@ body[data-screen="game"] textarea:focus-visible {
   }
   body[data-screen="game"] .seat-meta { margin-top: 13px; }
   body[data-screen="game"] .seat-name { font-size: clamp(0.68rem, 3.2vw, 0.8rem); }
+  /* No clamp here either: a phone shows the whole answer, scrolling the grid
+     if it has to. A cut answer is a cut clue. */
   body[data-screen="game"] .seat-answer {
-    display: -webkit-box;
+    display: block;
     margin: 9px 0 0;
     padding-top: 9px;
     border-top: 1px dashed rgba(255, 130, 5, 0.22);
@@ -2306,10 +2307,6 @@ body[data-screen="game"] textarea:focus-visible {
     font-size: clamp(0.6rem, 3vw, 0.68rem);
     line-height: 1.34;
     min-height: 0;
-    overflow: hidden;
-    -webkit-line-clamp: 4;
-    line-clamp: 4;
-    -webkit-box-orient: vertical;
   }
   body[data-screen="game"] .seat-answer:empty { display: none; }
   body[data-screen="game"] .vote-badge { top: -4px; right: -4px; }

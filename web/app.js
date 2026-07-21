@@ -791,6 +791,7 @@
     isLobbyHost = false;
     gameFinished = false;
     seats = [];
+    cancelTyping();
     latestUtterances.clear();
     voteTally = {};
     voteEliminated = null;
@@ -877,6 +878,11 @@
       maxRounds = msg.round_limit;
     }
     if (msg.phase === "question" && msg.answers && typeof msg.answers === "object") {
+      // A state resync carries the authoritative answers: land any reveal in
+      // flight instead of letting it type over them afterwards. Completing it
+      // rather than dropping it matters — a dropped reveal would leave the seat
+      // stuck on half a sentence with nothing left to finish it.
+      finishTyping();
       latestUtterances.clear();
       for (const [seatId, answer] of Object.entries(msg.answers)) {
         latestUtterances.set(seatId, answer);
@@ -1138,6 +1144,9 @@
   }
 
   function onPhaseChange(msg) {
+    // A phase can turn over on the last seat's line; complete it rather than
+    // leaving half a sentence frozen on the board.
+    finishTyping();
     document.body.dataset.phase = msg.phase;
     phaseName.textContent = phaseLabel(msg.phase);
     if (typeof msg.round === "number" && msg.round !== currentRound) {
@@ -1241,12 +1250,169 @@
     return copy[phase] || t("phase.wait");
   }
 
+  // ------------------------------------------------------------------
+  // Progressive reveal
+  // ------------------------------------------------------------------
+  // A revealed answer is typed out rather than dropped in whole: the line
+  // arrives at the pace of the voice, which is what makes a seat read as a
+  // character speaking instead of a text field being filled. The 3D arena is
+  // untouched — only the label text advances.
+  const TYPE_CHARS_PER_SECOND = 48;   // pace used when a seat has no voice clip
+  const TYPE_MIN_SECONDS = 0.35;
+  // Stays under `answer_reveal_min_seconds` (2.6 s), the floor a voiceless
+  // reveal is held for: a line must never still be typing when the next seat
+  // takes over.
+  const TYPE_MAX_SECONDS = 1.8;
+  const VOICE_WAIT_MS = 350;          // grace for a clip that is still loading
+  // The line runs ahead of the voice on purpose: it completes at 70 % of the
+  // clip, and starts a beat early. Text lagging behind speech reads as broken;
+  // text slightly ahead reads as subtitles.
+  const VOICE_LEAD = 0.7;
+  const VOICE_HEAD_START_MS = 250;
+  // A reported clip length outside this range is not a spoken sentence: it is a
+  // browser guessing from a partial download. Ignore it and read-along instead.
+  const MIN_CLIP_SECONDS = 0.4;
+  const MAX_CLIP_SECONDS = 25;
+  const HARD_DEADLINE_MS = 6000;      // nothing may keep a line incomplete past this
+  let typing = null;
+
+  function reducedMotion() {
+    try {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch {
+      return false;
+    }
+  }
+
+  // The 2D seat node is cached: this runs once per frame and `renderSeats()`
+  // only rebuilds those nodes on a state change, never mid-reveal.
+  const seatAnswerNodes = new Map();
+  let feedPinned = true;
+
+  function seatAnswerNode(seatId) {
+    const cached = seatAnswerNodes.get(seatId);
+    if (cached?.isConnected) return cached;
+    const node = document.querySelector(
+      `.seat[data-seat="${CSS.escape(seatId)}"] .seat-answer`
+    );
+    if (node) seatAnswerNodes.set(seatId, node);
+    else seatAnswerNodes.delete(seatId);
+    return node;
+  }
+
+  function paintUtterance(seatId, text, feedNode) {
+    latestUtterances.set(seatId, text);
+    const seatAnswer = seatAnswerNode(seatId);
+    if (seatAnswer) seatAnswer.textContent = text;
+    if (feedNode) {
+      feedNode.textContent = text;
+      // The growing line must not push itself out of view, but a player who
+      // scrolled up to re-read an earlier answer keeps their position.
+      if (feedPinned) transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    }
+    if (arena3d?.setSeatAnswer) arena3d.setSeatAnswer(seatId, text);
+    else syncArena();
+  }
+
+  // Complete the line in place. Called before any new reveal and on every phase
+  // change, so an interrupted seat is never left with half a sentence.
+  function finishTyping() {
+    if (!typing) return;
+    const state = typing;
+    typing = null;
+    if (state.raf) cancelAnimationFrame(state.raf);
+    paintUtterance(state.seatId, state.full, state.feedNode);
+  }
+
+  // Drop the reveal without painting it: used where the answers themselves are
+  // being discarded (leaving a match, resetting the board).
+  function cancelTyping() {
+    if (!typing) return;
+    const state = typing;
+    typing = null;
+    if (state.raf) cancelAnimationFrame(state.raf);
+    if (arena3d?.setSeatAnswer) {
+      arena3d.setSeatAnswer(state.seatId, latestUtterances.get(state.seatId) || "");
+    }
+  }
+
+  // Fraction of the sentence that should be visible right now.
+  //
+  // Everything below is wall-clock, measured from the start of the reveal, and
+  // the total duration is fixed once. `audio.duration` is only read to pick
+  // that total, never to drive the progress: a browser is free to revise the
+  // duration of an MP3 upwards while it plays, and pacing on a live
+  // `currentTime / duration` ratio froze the line mid-sentence — sometimes for
+  // seconds — every time it did, while the voice carried on.
+  function typedRatio(state, now) {
+    const elapsed = now - state.start;
+
+    if (!state.paceMs) {
+      const clip = state.audioUrl ? A.playbackProgress?.() : null;
+      const mine = clip && clip.url === state.audioUrl && !clip.blocked ? clip : null;
+      const clipSeconds = mine ? mine.duration / (mine.rate || 1) : 0;
+      if (clipSeconds >= MIN_CLIP_SECONDS && clipSeconds <= MAX_CLIP_SECONDS) {
+        // Speak-along pace, deliberately ahead of the voice.
+        state.paceMs = clipSeconds * 1000 * VOICE_LEAD;
+      } else if (!mine || elapsed >= VOICE_WAIT_MS) {
+        // No voice for this seat, or no usable duration in time: read-along
+        // pace rather than wait on metadata that may never come.
+        state.paceMs = Math.min(
+          TYPE_MAX_SECONDS * 1000,
+          Math.max(TYPE_MIN_SECONDS * 1000, (state.full.length / TYPE_CHARS_PER_SECOND) * 1000),
+        );
+      } else {
+        return 0;   // brief hold while the clip reports its length
+      }
+    }
+
+    // The deadline is unconditional: whatever the audio does or fails to do,
+    // the sentence is fully readable within it.
+    return Math.max(
+      (elapsed + VOICE_HEAD_START_MS) / state.paceMs,
+      elapsed / HARD_DEADLINE_MS,
+    );
+  }
+
+  function typeUtterance(seatId, full, feedNode, audioUrl) {
+    finishTyping();
+    if (!full || reducedMotion() || typeof requestAnimationFrame !== "function") {
+      paintUtterance(seatId, full, feedNode);
+      return;
+    }
+    const state = {
+      seatId, full, feedNode, audioUrl,
+      shown: -1,
+      start: performance.now(),
+      paceMs: 0,
+      raf: 0,
+    };
+    typing = state;
+    const step = () => {
+      if (typing !== state) return;
+      const ratio = Math.min(1, typedRatio(state, performance.now()));
+      const count = Math.round(full.length * ratio);
+      const done = count >= full.length;
+      if (count !== state.shown) {
+        state.shown = count;
+        paintUtterance(seatId, full.slice(0, count), feedNode);
+      }
+      if (done) {
+        typing = null;
+        return;
+      }
+      state.raf = requestAnimationFrame(step);
+    };
+    state.raf = requestAnimationFrame(step);
+  }
+
   function onUtterance(msg) {
     flashSpeaking(msg.seat);
-    latestUtterances.set(msg.seat, msg.text || t("answer.silence"));
-    const seatAnswer = document.querySelector(`.seat[data-seat="${CSS.escape(msg.seat)}"] .seat-answer`);
-    if (seatAnswer) seatAnswer.textContent = msg.text || t("answer.silence");
-    syncArena();
+    const spoken = msg.text || t("answer.silence");
+    // Measured once, before the line starts growing: reading the scroll box on
+    // every frame would force a layout next to a 60 fps canvas.
+    feedPinned =
+      transcriptEl.scrollHeight - transcriptEl.scrollTop - transcriptEl.clientHeight < 40;
     transcriptEl.querySelector(".transcript-empty")?.remove();
     const div = document.createElement("div");
     div.className = "utt";
@@ -1264,10 +1430,11 @@
     }
     const text = document.createElement("span");
     text.className = "utterance-text";
-    text.textContent = msg.text || "";
     div.appendChild(text);
     transcriptEl.appendChild(div);
-    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    if (feedPinned) transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    // Queue the voice first: the reveal paces itself on that clip, so it has to
+    // be the one playing when the first frame measures playback progress.
     if (msg.audio_url) {
       A.enqueue(msg.audio_url, () => {
         if (msg.playback_id && ws?.readyState === WebSocket.OPEN) {
@@ -1278,6 +1445,7 @@
         }
       });
     }
+    typeUtterance(msg.seat, spoken, text, msg.audio_url || "");
   }
 
   // ------------------------------------------------------------------
