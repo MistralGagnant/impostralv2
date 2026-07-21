@@ -1264,16 +1264,10 @@
   // takes over.
   const TYPE_MAX_SECONDS = 1.8;
   const VOICE_WAIT_MS = 350;          // grace for a clip that is still loading
-  // The line runs ahead of the voice on purpose: it completes at 70 % of the
-  // clip, and starts a beat early. Text lagging behind speech reads as broken;
-  // text slightly ahead reads as subtitles.
-  const VOICE_LEAD = 0.7;
-  const VOICE_HEAD_START_MS = 250;
   // A reported clip length outside this range is not a spoken sentence: it is a
   // browser guessing from a partial download. Ignore it and read-along instead.
   const MIN_CLIP_SECONDS = 0.4;
   const MAX_CLIP_SECONDS = 25;
-  const HARD_DEADLINE_MS = 6000;      // nothing may keep a line incomplete past this
   let typing = null;
 
   function reducedMotion() {
@@ -1338,12 +1332,12 @@
 
   // Fraction of the sentence that should be visible right now.
   //
-  // Everything below is wall-clock, measured from the start of the reveal, and
-  // the total duration is fixed once. `audio.duration` is only read to pick
-  // that total, never to drive the progress: a browser is free to revise the
-  // duration of an MP3 upwards while it plays, and pacing on a live
-  // `currentTime / duration` ratio froze the line mid-sentence — sometimes for
-  // seconds — every time it did, while the voice carried on.
+  // One constant speed per line: the whole text is spread evenly over the
+  // duration of the clip, so the pace is simply `length / duration` characters
+  // per second. The total is fixed once, at the start, and everything after is
+  // wall-clock — `audio.duration` is never used to drive the progress frame by
+  // frame, because a browser is free to revise the duration of an MP3 upwards
+  // while it plays, which froze the line mid-sentence.
   function typedRatio(state, now) {
     const elapsed = now - state.start;
 
@@ -1352,8 +1346,8 @@
       const mine = clip && clip.url === state.audioUrl && !clip.blocked ? clip : null;
       const clipSeconds = mine ? mine.duration / (mine.rate || 1) : 0;
       if (clipSeconds >= MIN_CLIP_SECONDS && clipSeconds <= MAX_CLIP_SECONDS) {
-        // Speak-along pace, deliberately ahead of the voice.
-        state.paceMs = clipSeconds * 1000 * VOICE_LEAD;
+        // The line lasts exactly as long as the voice does.
+        state.paceMs = clipSeconds * 1000;
       } else if (!mine || elapsed >= VOICE_WAIT_MS) {
         // No voice for this seat, or no usable duration in time: read-along
         // pace rather than wait on metadata that may never come.
@@ -1366,12 +1360,7 @@
       }
     }
 
-    // The deadline is unconditional: whatever the audio does or fails to do,
-    // the sentence is fully readable within it.
-    return Math.max(
-      (elapsed + VOICE_HEAD_START_MS) / state.paceMs,
-      elapsed / HARD_DEADLINE_MS,
-    );
+    return elapsed / state.paceMs;
   }
 
   function typeUtterance(seatId, full, feedNode, audioUrl) {
