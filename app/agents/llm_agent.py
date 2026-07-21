@@ -265,15 +265,21 @@ _HUMAN_TELLS = {
     "standard": (
         "A seat that mistypes, jokes, contradicts itself, answers "
         "sarcastically, or shouts that it is human is far more likely to be a "
-        "human than a machine, unless the rest of its answers say otherwise."
+        "human than a machine, unless the rest of its answers say otherwise. "
+        "Every AI at this table is trying to pass as human though, you "
+        "included, and they all imitate those same habits on purpose, so this "
+        "tell is never proof on its own and must not decide your ballot by "
+        "itself."
     ),
     "hardcore": (
         "A seat that mistypes, jokes, contradicts itself, answers "
         "sarcastically, or shouts that it is human is more likely to be a "
         "human than a machine, unless the rest of its answers say otherwise "
         "or it is a machine playing one of the personas below. Two of them are "
-        "briefed to do exactly that, so weigh the tell against the cast before "
-        "trusting it."
+        "briefed to do exactly that. Every AI here is trying to pass as human "
+        "though, you included, and they all imitate those same habits on "
+        "purpose, so this tell is never proof on its own: weigh it against the "
+        "cast and the rest of the seat's answers before it decides your ballot."
     ),
 }
 

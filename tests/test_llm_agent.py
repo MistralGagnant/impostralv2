@@ -239,6 +239,13 @@ class SortieAgentTest(unittest.TestCase):
         self.assertIn("say otherwise.", standard)
         self.assertNotIn("far more likely", hardcore)
 
+        # Dans les deux cas, l'indice est explicitement faillible : tous les
+        # agents imitent ces habitudes, donc il ne suffit pas à décider un vote.
+        for prompt in (standard, hardcore):
+            self.assertIn("trying to pass as human though, you included", prompt)
+            self.assertIn("imitate those same habits on purpose", prompt)
+            self.assertIn("never proof on its own", prompt)
+
     def test_le_prompt_annonce_la_composition_de_depart(self) -> None:
         import asyncio
 
