@@ -156,8 +156,10 @@ The STT and TTS wrappers degrade gracefully to text-only play when calls fail.
 Every human and LLM utterance uses the synthetic Voxtral voice assigned to that
 seat through `_prepare_answer`, `_reveal_prepared`, and `audio/tts.py`.
 Listeners cannot identify a human by
-voice. Response-time tells are also hidden through a lock, scramble, reveal
-flow. Every active seat prepares privately and in parallel during one fixed
+voice. Typing tells are hidden too: `app/game/answers.py` normalizes every
+public answer, human or agent, to one sentence that starts with a capital and
+ends with `.`, `!`, or `?`. Response-time tells are also hidden through a lock,
+scramble, reveal flow. Every active seat prepares privately and in parallel during one fixed
 window from the same prior-round transcript. Text survives a slow TTS call.
 Locked answers are then revealed one at a time in a fresh randomized order.
 No seat can copy an answer revealed earlier in the same round, and agents never

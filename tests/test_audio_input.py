@@ -71,7 +71,7 @@ class AudioInputTest(unittest.IsolatedAsyncioTestCase):
         ) as transcribe:
             result = await engine._payload_to_text(payload)
 
-        self.assertEqual(result, "transcript")
+        self.assertEqual(result, "Transcript.")
         transcribe.assert_awaited_once_with(
             b"voice",
             mime_type="audio/mp4",

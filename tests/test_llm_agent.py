@@ -56,14 +56,24 @@ class SortieAgentTest(unittest.TestCase):
             _one_short_sentence(
                 "A warm cup of coffee, that I was just holding in my hand."
             ),
-            "A warm cup of coffee",
+            "A warm cup of coffee.",
         )
         self.assertEqual(
             _one_short_sentence(
                 "Une tasse de café tiède, qui traînait près du clavier."
             ),
-            "Une tasse de café tiède",
+            "Une tasse de café tiède.",
         )
+
+    def test_une_reponse_est_capitalisee_et_ponctuee(self) -> None:
+        # A typed human answer must not stand out from model output.
+        self.assertEqual(_one_short_sentence("deux cafés ce matin"), "Deux cafés ce matin.")
+        self.assertEqual(_one_short_sentence("vraiment ?"), "Vraiment ?")
+        self.assertEqual(_one_short_sentence("aucune idée,"), "Aucune idée.")
+        self.assertEqual(_one_short_sentence("3 heures de sommeil"), "3 heures de sommeil.")
+        long_answer = _one_short_sentence("b" * MAX_PUBLIC_CHARS)
+        self.assertLessEqual(len(long_answer), MAX_PUBLIC_CHARS)
+        self.assertTrue(long_answer.endswith("."))
 
     def test_les_tirets_sont_normalises(self) -> None:
         output = _one_short_sentence("I—think Player-C looks scripted - honestly.")

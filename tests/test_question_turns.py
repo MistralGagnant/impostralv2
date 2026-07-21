@@ -221,8 +221,8 @@ class QuestionTurnTest(unittest.IsolatedAsyncioTestCase):
             for _, message in room.messages
             if message["type"] == "utterance"
         }
-        self.assertEqual(texts["Player A"], "answer from Player A")
-        self.assertEqual(texts["Player B"], "agent answer")
+        self.assertEqual(texts["Player A"], "Answer from Player A.")
+        self.assertEqual(texts["Player B"], "Agent answer.")
 
     async def test_a_slow_agent_falls_back_without_extending_its_turn(self) -> None:
         room = StubRoom([
@@ -287,7 +287,7 @@ class QuestionTurnTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(agent.transcripts), 1)
         self.assertIn("Player C: an earlier answer", agent.transcripts[0])
-        self.assertNotIn("answer from Player A", agent.transcripts[0])
+        self.assertNotIn("from Player A", agent.transcripts[0])
 
     async def test_valid_text_survives_when_voice_is_not_ready(self) -> None:
         room = StubRoom([
@@ -311,21 +311,21 @@ class QuestionTurnTest(unittest.IsolatedAsyncioTestCase):
         utterance = next(
             message for _, message in room.messages if message["type"] == "utterance"
         )
-        self.assertEqual(utterance["text"], "private partial answer")
+        self.assertEqual(utterance["text"], "Private partial answer.")
         self.assertIsNone(utterance["audio_url"])
 
     async def test_one_voice_failure_never_silences_the_other_seats(self) -> None:
         """A failed clip costs its own seat its voice, never the whole round."""
         room = StubRoom([
-            StubSeat("Player A", "llm", StubAgent("voiced answer")),
-            StubSeat("Player B", "llm", StubAgent("mute answer")),
+            StubSeat("Player A", "llm", StubAgent("Voiced answer.")),
+            StubSeat("Player B", "llm", StubAgent("Mute answer.")),
         ])
         engine = make_engine(room, input_seconds=0.01, turn_seconds=0.5)
 
         async def mixed_speech(text: str, *, voice: str):
-            if text == "mute answer":
+            if text == "Mute answer.":
                 return None
-            return f"/audio/{text.replace(' ', '-')}"
+            return f"/audio/{text.rstrip('.').lower().replace(' ', '-')}"
 
         with (
             patch("app.game.state_machine.questions.pick_question", return_value="Prompt?"),
