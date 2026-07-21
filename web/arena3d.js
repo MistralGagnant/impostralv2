@@ -368,7 +368,9 @@ export function createArena({ canvas, root, labels }) {
   const shared = {
     pod: geometry(new THREE.CylinderGeometry(0.76, 0.94, 0.42, 6)),
     seat: geometry(new THREE.BoxGeometry(1.3, 0.18, 1.02)),
-    back: geometry(new THREE.BoxGeometry(1.38, 1.32, 0.16)),
+    // Dossier volontairement bas : le sprite du personnage commence à y≈0.55 et
+    // un dossier plus haut masquerait la tête des sièges vus depuis la caméra.
+    back: geometry(new THREE.BoxGeometry(1.38, 0.66, 0.16)),
     ring: geometry(new THREE.TorusGeometry(0.84, 0.055, 4, 36)),
     pip: geometry(new THREE.BoxGeometry(0.12, 0.12, 0.12)),
   };
@@ -434,7 +436,10 @@ export function createArena({ canvas, root, labels }) {
     const seat = makeMesh(shared.seat, frameMaterial);
     seat.position.set(0, 0.48, 0.08);
     const back = makeMesh(shared.back, frameMaterial);
-    back.position.set(0, 1.1, -0.42);
+    // `+z` local = rayon sortant (cf. positionSeats) : le dossier va donc DERRIÈRE
+    // le personnage, qui fait face à la table. À `-z` il se dressait entre la
+    // caméra et la tête des sièges du fond — le « carré marron » qui les cachait.
+    back.position.set(0, 0.88, 0.55);
     const ring = makeMesh(shared.ring, ringMaterial);
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 0.43;
@@ -446,7 +451,9 @@ export function createArena({ canvas, root, labels }) {
       depthWrite: false,
     }));
     const sprite = new THREE.Sprite(spriteMaterial);
-    sprite.position.set(0, 1.4, 0.05);
+    // Avancé vers le centre (`-z` local) pour dégager le bas de la tête du
+    // dossier sur les sièges vus de dos, les plus proches de la caméra.
+    sprite.position.set(0, 1.4, -0.2);
     sprite.scale.set(1.7, 1.7, 1);
 
     const pips = new THREE.Group();
