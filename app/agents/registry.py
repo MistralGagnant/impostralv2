@@ -30,6 +30,9 @@ class AgentBuildSpec:
     # be rotated per seat instead of per persona. `None` leaves it to the
     # provider.
     answer_variant: int | None = None
+    # Hardcore rooms reward an AI for surviving, whoever it eliminated, so the
+    # agent is briefed on a different objective and a different ballot rule.
+    hardcore: bool = False
 
     def __post_init__(self) -> None:
         if not self.seat_id.strip():
@@ -102,6 +105,7 @@ def _mistral_factory(spec: AgentBuildSpec) -> GameAgent:
         seed=spec.seed,
         language=spec.language,
         answer_variant=spec.answer_variant,
+        hardcore=spec.hardcore,
     )
 
 

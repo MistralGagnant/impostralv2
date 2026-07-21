@@ -56,7 +56,7 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=20260721-v27" />
+  <link rel="stylesheet" href="/static/style.css?v=20260721-v28" />
 </head>
 <body data-screen="join">
   <div class="app-shell">
@@ -142,6 +142,18 @@
                 <span data-i18n="landing.enter">Enter a game</span>
                 <b aria-hidden="true">→</b>
               </button>
+              <button
+                id="play-hardcore-btn"
+                class="play-btn play-btn--hardcore"
+                type="button"
+                aria-describedby="hardcore-note"
+              >
+                <span data-i18n="landing.enter_hardcore">Enter a hardcore game</span>
+                <b aria-hidden="true">→</b>
+              </button>
+              <p id="hardcore-note" class="hardcore-note" data-i18n="landing.hardcore_note">
+                Hardcore: an AI wins by surviving, whoever it eliminated. They will hunt you, and they know it.
+              </p>
               <div id="turnstile-container" class="turnstile-container" aria-live="polite"></div>
               <p id="join-hint" class="hint" aria-live="polite"></p>
 
@@ -167,6 +179,10 @@
                     <input id="humans-input" type="number" min="1" max="8" step="1" value="3" autocomplete="off" />
                   </label>
                   <button id="join-btn" type="button"><span data-i18n="landing.create_enter">Create &amp; enter</span></button>
+                  <!-- Création d'un salon hardcore : même formulaire, autre
+                       règlement. Masqué en mode « rejoindre », où le règlement
+                       vient du salon de l'hôte. -->
+                  <button id="join-hardcore-btn" class="hardcore-btn" type="button"><span data-i18n="landing.create_hardcore">Create a hardcore lobby</span></button>
                 </div>
               </details>
             </div>
@@ -206,6 +222,10 @@
       <section id="game-screen" class="game-screen hidden">
         <div class="game-layout">
           <aside class="mission-panel tactical-panel" aria-label="Round status" data-i18n-aria-label="hud.round_status">
+            <!-- Affiché uniquement dans un salon hardcore (cf. style.css), où
+                 les IA gagnent en survivant et ont donc intérêt à éliminer les
+                 humains. -->
+            <p id="mode-badge" class="mode-badge" data-i18n="hud.hardcore">Hardcore</p>
             <div class="metric-row">
               <span data-i18n="hud.round">Round</span>
               <strong><b id="round-current">0</b><small> / <i id="round-total">5</i></small></strong>
@@ -335,8 +355,9 @@
         <ul>
           <li data-i18n="rules.win_humans">Humans win together as soon as every AI has been eliminated, including the humans voted out earlier.</li>
           <li data-i18n="rules.win_agents">AIs play for themselves. Every AI still hidden at the end of the game wins on its own; there is no AI team.</li>
-          <li data-i18n="rules.win_hunt">An AI that votes a human out loses the game on the spot. It stays at the table and keeps voting, but it can no longer win. Only the AIs that voted for that human are punished — and they never find out, because AIs are never told what an eliminated player was.</li>
-          <li data-i18n="rules.win_hunted_all">So if every AI still hidden has voted a human out, the humans win.</li>
+          <li class="rules-standard" data-i18n="rules.win_hunt">An AI that votes a human out loses the game on the spot. It stays at the table and keeps voting, but it can no longer win. Only the AIs that voted for that human are punished — and they never find out, because AIs are never told what an eliminated player was.</li>
+          <li class="rules-standard" data-i18n="rules.win_hunted_all">So if every AI still hidden has voted a human out, the humans win.</li>
+          <li class="rules-hardcore" data-i18n="rules.hard_win_hunt">Hardcore: an AI that votes a human out is not punished at all. Surviving is the only thing that counts for it, so it plays to eliminate you — and it has been told the other AIs will do the same.</li>
         </ul>
       </section>
 
@@ -348,10 +369,10 @@
     </article>
   </dialog>
 
-  <script src="/static/i18n.js?v=20260721-v27"></script>
-  <script src="/static/audio.js?v=20260721-v27"></script>
-  <script src="/static/sound.js?v=20260721-v27"></script>
-  <script src="/static/arena3d-loader.js?v=20260721-v27"></script>
-  <script src="/static/app.js?v=20260721-v27"></script>
+  <script src="/static/i18n.js?v=20260721-v28"></script>
+  <script src="/static/audio.js?v=20260721-v28"></script>
+  <script src="/static/sound.js?v=20260721-v28"></script>
+  <script src="/static/arena3d-loader.js?v=20260721-v28"></script>
+  <script src="/static/app.js?v=20260721-v28"></script>
 </body>
 </html>

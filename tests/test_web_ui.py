@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260721-v27"
+ASSET_VERSION = "20260721-v28"
 
 
 class WebUiTest(unittest.TestCase):
@@ -323,6 +323,40 @@ class WebUiTest(unittest.TestCase):
         self.assertIn('action: "enter_game"', app_js)
         self.assertIn("turnstile_token: turnstileToken", app_js)
         self.assertIn("/lobby/${encodeURIComponent(room)}/join", app_js)
+
+    def test_hardcore_entry_points_are_offered_in_red(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
+        i18n = (ROOT / "web" / "i18n.js").read_text(encoding="utf-8")
+
+        # Le bouton rouge se place sous le bouton orange, même gabarit.
+        self.assertIn('id="play-hardcore-btn"', html)
+        self.assertIn('class="play-btn play-btn--hardcore"', html)
+        self.assertIn('id="join-hardcore-btn"', html)
+        self.assertIn('play("hardcore")', app_js)
+        self.assertIn('enterRoom("hardcore")', app_js)
+        self.assertIn("payload.mode = ruleset", app_js)
+        self.assertIn("mode: ruleset", app_js)
+        self.assertIn('body[data-screen="join"] .play-btn--hardcore {', css)
+        self.assertIn('"landing.enter_hardcore": "Enter a hardcore game"', i18n)
+        self.assertIn(
+            '"landing.enter_hardcore": "Entrer dans une partie hardcore"', i18n
+        )
+        self.assertIn('"landing.create_hardcore": "Créer un salon hardcore"', i18n)
+
+    def test_the_hardcore_ruleset_is_visible_during_the_game(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="mode-badge"', html)
+        self.assertIn('data-i18n="hud.hardcore"', html)
+        self.assertIn("document.body.dataset.mode = msg.mode", app_js)
+        self.assertIn('body[data-mode="hardcore"] .mode-badge {', css)
+        # Les règles affichées suivent le règlement du salon.
+        self.assertIn('class="rules-hardcore"', html)
+        self.assertIn('body[data-mode="hardcore"] .rules-standard { display: none; }', css)
 
 
 if __name__ == "__main__":

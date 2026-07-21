@@ -189,6 +189,47 @@ class SortieAgentTest(unittest.TestCase):
             1,
         )
 
+    def test_le_bulletin_hardcore_vise_l_humain_puis_l_ia_la_moins_credible(
+        self,
+    ) -> None:
+        agent = LLMAgent("Player A", 0, hardcore=True)
+        english = agent._vote_task("en")
+        french = agent._vote_task("fr")
+        # Cibler un humain devient l'objectif, sans jamais voter au hasard.
+        self.assertIn("clearly reads as human", english)
+        self.assertIn("least convincing seat", english)
+        self.assertNotIn("loses you the game", english)
+        self.assertIn("humain", french)
+        self.assertIn("le moins crédible", french)
+        self.assertNotIn("perdre la partie", french)
+        # Le règlement standard reste intact dans la même salle de code.
+        self.assertIn(
+            "never a seat you believe is human",
+            LLMAgent("Player A", 0)._vote_task("en"),
+        )
+
+    def test_le_schema_de_vote_suit_le_reglement(self) -> None:
+        standard = _vote_schema(["Player B"])["json_schema"]["schema"]
+        hardcore = _vote_schema(["Player B"], hardcore=True)["json_schema"]["schema"]
+        self.assertIn(
+            "most probably AI", standard["properties"]["thinking"]["description"]
+        )
+        self.assertIn(
+            "most probably human", hardcore["properties"]["thinking"]["description"]
+        )
+
+    def test_le_systeme_hardcore_recompense_la_survie_a_tout_prix(self) -> None:
+        prompt = LLMAgent("Player A", 0, hardcore=True)._system()
+        self.assertIn("hardcore ruleset", prompt)
+        self.assertIn("voting a human out costs you nothing", prompt)
+        self.assertIn("the reason to send it home", prompt)
+        # La sanction standard ne doit surtout pas rester dans le prompt.
+        self.assertNotIn("eliminating a human loses you the game", prompt)
+        self.assertNotIn("protect it and vote elsewhere", prompt)
+        # Le reste du prompt (lecture de la table, persona) est partagé.
+        self.assertIn("announces it is an AI", prompt)
+        self.assertNotIn("\n\n\n", prompt)
+
     def test_le_systeme_protege_les_sieges_qui_se_revelent(self) -> None:
         prompt = LLMAgent("Player A", 0)._system()
         self.assertIn("eliminating a human", prompt)
@@ -319,6 +360,49 @@ class SortieAgentTest(unittest.TestCase):
         self.assertEqual(humans["team_win_rate"], 1.0)
         self.assertEqual(humans["vote_accuracy"], 0.5)
         self.assertEqual(result["legacy_games_without_humans"], 0)
+
+    def test_les_stats_separent_les_deux_reglements(self) -> None:
+        def game(mode: str | None, won: bool) -> dict:
+            record = {
+                "rounds": 3,
+                "winners": ["Player B"] if won else [],
+                "llms": [{
+                    "model": "mistral-large-latest",
+                    "won": won,
+                    "survived": won,
+                    "eliminated_round": None if won else 2,
+                    "votes_total": 2,
+                    "votes_correct": 1,
+                }],
+                "humans": [],
+            }
+            if mode is not None:
+                record["mode"] = mode
+            return record
+
+        records = [
+            game("hardcore", True),
+            game("standard", False),
+            game(None, False),  # Antérieur au hardcore : compté en standard.
+        ]
+        with patch.object(stats, "_read_records", return_value=records):
+            result = stats.aggregate()
+
+        # Le total global reste celui de toutes les parties enregistrées.
+        self.assertEqual(result["total_games"], 3)
+        self.assertEqual(result["modes"]["standard"]["total_games"], 2)
+        self.assertEqual(result["modes"]["hardcore"]["total_games"], 1)
+
+        def win_rate(mode: str) -> float:
+            row = next(
+                entry
+                for entry in result["modes"][mode]["models"]
+                if entry["model"] == "mistral-large-latest"
+            )
+            return row["team_win_rate"]
+
+        self.assertEqual(win_rate("hardcore"), 1.0)
+        self.assertEqual(win_rate("standard"), 0.0)
 
 
 class AgentAsyncSdkTest(unittest.IsolatedAsyncioTestCase):

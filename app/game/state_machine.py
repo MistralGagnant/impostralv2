@@ -31,6 +31,7 @@ from ..agents.contracts import (
 from ..audio import stt, tts
 from ..config import get_settings
 from ..i18n import tr
+from ..modes import DEFAULT_MODE, is_hardcore, normalize_mode, ruleset_id
 from . import events, questions, stats
 from .answers import normalize_public_answer
 from .events import Phase
@@ -42,6 +43,9 @@ class GameEngine:
     def __init__(self, room) -> None:
         self.room = room
         self.language = getattr(room, "language", "en")
+        # Small test rooms and legacy controllers may not carry a mode at all.
+        self.mode = normalize_mode(getattr(room, "mode", DEFAULT_MODE))
+        self.hardcore = is_hardcore(self.mode)
         self.settings = get_settings()
         self.used_questions: set[str] = set()
         self.eliminated_llms: list[str] = []
@@ -548,8 +552,11 @@ class GameEngine:
         rule costs the game: the agent stays at the table and keeps voting, but
         it is out of the running. The penalty is never announced, because
         naming the punished seats would tell the humans exactly which seats are
-        AIs. Hardcore mode, once implemented, would skip this entirely.
+        AIs. Hardcore rooms skip this entirely: there, an AI wins by surviving,
+        whoever it eliminated, and it is briefed to hunt the humans on purpose.
         """
+        if self.hardcore:
+            return
         hunters = []
         for seat_id, target in getattr(self, "_last_ballot", {}).items():
             voter = self.room.seats.get(seat_id)
@@ -889,6 +896,7 @@ class GameEngine:
                 ),
                 answers=getattr(self.room, "current_answers", {}),
                 language=getattr(self.room, "language", "en"),
+                mode=self.mode,
             )
         )
 
@@ -907,10 +915,14 @@ class GameEngine:
                 match_id=self.room.agent_match_id,
                 seat_id=seat.id,
                 language=self.language,
-                ruleset_id="independent-survival.v2",
+                ruleset_id=ruleset_id(self.mode),
                 max_rounds=int(getattr(self.settings, "max_rounds", 5)),
                 seat_count=len(self.room.seats),
-                objective="survive_to_terminal",
+                objective=(
+                    "survive_by_any_elimination"
+                    if self.hardcore
+                    else "survive_to_terminal"
+                ),
                 protocol_version="1",
             )
             if self.language not in seat.agent.identity.supported_languages:

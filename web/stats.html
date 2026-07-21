@@ -23,7 +23,7 @@
   <meta name="twitter:title" content="Impostral — Player stats" />
   <meta name="twitter:description" content="Compare human and Mistral AI win rate, survival, and voting accuracy." />
   <meta name="twitter:image" content="https://impostral.com/assets/logo.png" />
-  <link rel="stylesheet" href="/static/style.css?v=20260721-v27" />
+  <link rel="stylesheet" href="/static/style.css?v=20260721-v28" />
   <style>
     /* Metric series — the game's brand hues, validated for colorblind
        separation. Every bar also carries a text label and a printed value. */
@@ -41,6 +41,22 @@
       margin: 0; max-width: 46ch; color: var(--muted);
       font-size: 0.72rem; line-height: 1.5;
     }
+
+    /* --- Ruleset tabs ----------------------------------------------------- */
+    .st-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .st-tabs button {
+      min-height: 34px; padding: 0 16px;
+      border: 1px solid var(--line-soft); background: transparent;
+      color: var(--muted); font-family: var(--mono); font-size: 0.62rem;
+      letter-spacing: 0.16em; text-transform: uppercase; cursor: pointer;
+    }
+    .st-tabs button[aria-selected="true"] {
+      border-color: var(--orange); background: var(--orange); color: #180900;
+    }
+    .st-tabs button[data-mode="hardcore"][aria-selected="true"] {
+      border-color: var(--red); background: var(--red); color: #fff2ee;
+    }
+    .st-tabs button.hidden { display: none; }
 
     /* --- Hero KPI tiles --------------------------------------------------- */
     .st-hero {
@@ -245,11 +261,17 @@
           <button class="btn" id="refresh" type="button"
             style="min-height:36px; padding:0 16px; font-size:0.62rem;">Refresh</button>
         </div>
+        <!-- Les deux règlements ne sont pas comparables : une IA hardcore
+             chasse les humains. Les chiffres sont donc séparés. -->
+        <div id="mode-tabs" class="st-tabs" role="tablist" aria-label="Ruleset">
+          <button type="button" role="tab" aria-selected="true" data-mode="standard">Standard</button>
+          <button type="button" role="tab" aria-selected="false" data-mode="hardcore">Hardcore</button>
+        </div>
         <div id="content"></div>
       </div>
     </main>
   </div>
 
-  <script src="/static/stats.js?v=20260721-v27" defer></script>
+  <script src="/static/stats.js?v=20260721-v28" defer></script>
 </body>
 </html>

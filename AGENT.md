@@ -5,6 +5,11 @@ Every AI competes independently to pass as human, while all active players vote
 during elimination rounds. Humans win by eliminating every AI. Each round follows:
 **question -> vote -> resolution**.
 
+A room is played under one of two immutable **rulesets**, chosen at creation
+next to its language (`app/modes.py`): `standard`, where an AI that votes a
+human out loses, and `hardcore`, where surviving is all that counts for an AI,
+so it is told to hunt the humans. See **Win conditions**.
+
 Status: **functional POC**, validated end to end with chat, Voxtral STT, and TTS.
 
 ## Language rule
@@ -35,7 +40,10 @@ exposes `mock_mode`.
 The default **Play** action uses anonymous quick matchmaking; the private
 codename field may be left blank. `POST /matchmaking`
 atomically reserves a human seat in the oldest waiting public lobby, or creates a
-public lobby with the default composition. The browser opens the room WebSocket
+public lobby with the default composition. The red **Enter a hardcore game**
+button under it does the same with `mode: "hardcore"`; public queues are
+partitioned by ruleset exactly as they are by language, so the two never mix.
+The browser opens the room WebSocket
 with that short-lived reservation ticket; public players are automatically ready
 and the game starts when all human seats are connected or after a configurable
 15-second wait, provided at least `IMPOSTRAL_MIN_PUBLIC_START_HUMANS` humans are
@@ -64,7 +72,9 @@ Named private lobbies remain available under **Private lobby options**. One
 player creates a lobby and chooses its human count; other players join using the
 same name. The lobby shows the number of connected humans live and only its
 creator can start the game; private lobbies never use the public 15-second
-timer. Joining never creates a private room, so a wrong name is rejected.
+timer. A second red **Create a hardcore lobby** button creates the same lobby
+under the hardcore ruleset; joining never picks a ruleset, since it comes from
+the lobby. Joining never creates a private room, so a wrong name is rejected.
 `IMPOSTRAL_NUM_HUMANS` is
 the public/default human count (bounded by `IMPOSTRAL_MIN_HUMANS` and
 `IMPOSTRAL_MAX_HUMANS`); the AI count comes from `IMPOSTRAL_NUM_LLMS`. Configure
@@ -118,7 +128,12 @@ preferably one short sentence. Round answers must address the exact personal
 question with a concrete detail, but that is a suggestion: a seat that has just
 claimed to be human or called for a vote may be answered instead of the card.
 The ballot itself stays imperative — an agent must vote for the least convincing
-competing AI and never for a seat it believes is human. Only `output` enters the transcript. Mock-mode agents
+competing AI and never for a seat it believes is human. A hardcore room swaps
+two blocks of that prompt and the whole ballot instruction: the agent is told
+that surviving is all that counts, that voting a human out costs it nothing and
+helps, and that the other AIs are briefed identically, so it should send home
+any seat it reads as human and fall back on the least convincing seat
+otherwise. Only `output` enters the transcript. Mock-mode agents
 use card-specific scripted answers instead of unrelated persona examples,
 rotated on the seat's rank among the room's agents through
 `AgentBuildSpec.answer_variant` so that two seats never read the same line.
@@ -130,9 +145,13 @@ Each finished game appends a JSON record to `IMPOSTRAL_STATS_PATH` (default
 elimination round, competitive vote accuracy, and whether the seat was
 disqualified for voting a human out. Humans are recorded too, but
 grouped anonymously into a single `Humans` bucket (never per pseudonym), so the
-dashboard compares humans against each AI model. `/stats` exposes aggregates and
-`/stats.html` renders the player comparison dashboard. Records created before
-human tracking remain readable and are reported as unavailable human history.
+dashboard compares humans against each AI model. Each record also carries its
+`mode` and `ruleset`. `/stats` exposes the combined aggregates plus the same
+shape per ruleset under `modes`, and `/stats.html` renders a Standard/Hardcore
+tab pair, because an agent rewarded for eliminating humans is not comparable to
+one punished for it. Records created before
+human tracking remain readable and are reported as unavailable human history;
+records created before hardcore existed count as standard games.
 
 ## `mistralai` SDK version caveat
 
@@ -185,6 +204,7 @@ seats.
 |------|---------|
 | `app/main.py` | FastAPI app, quick matchmaking, private lobby creation, WebSocket, audio endpoint, and static web client. |
 | `app/config.py` | Models, timings, composition, and voice language settings. |
+| `app/modes.py` | Ruleset vocabulary shared by rooms, engine, agents, and stats. |
 | `app/mistral_client.py` | Shared Mistral client with robust 1.x/2.x imports. |
 | `app/turnstile.py` | Server-side Cloudflare Turnstile token verification. |
 | `app/rooms.py` | Rooms with per-lobby composition, seats, connections, and human input routing. |
@@ -203,15 +223,19 @@ seats.
 ## WebSocket protocol
 
 Quick play calls
-`POST /matchmaking {player_id, session_id, name, turnstile_token}`. It returns
+`POST /matchmaking {player_id, session_id, name, turnstile_token, mode}`. It returns
 `room_id` and `reservation_token`; concurrent calls are serialized so they cannot
 claim the same seat. Reservations expire after 20 seconds by default. Private
 lobby creation calls
-`POST /lobby {name, num_humans, player_id, session_id, turnstile_token}` and
+`POST /lobby {name, num_humans, player_id, session_id, turnstile_token, mode}` and
 returns the creator's reservation. Joining calls
 `POST /lobby/{room_id}/join {player_id, session_id, turnstile_token}` and returns
 another reservation. Creation returns 409 if the name is taken and 400 if
-`num_humans` is out of range. `GET /config` exposes composition bounds plus the
+`num_humans` is out of range. Every one of those responses echoes the room's
+`mode`, which the browser stores with the match and mirrors on
+`body[data-mode]` so the HUD can show its red **Hardcore** badge and the rules
+dialog can switch to the hardcore wording. `GET /config` exposes composition
+bounds, `supported_modes`, plus the
 public Turnstile site key when enforcement is active.
 
 - **Client -> server**: `join{name, player_id, session_id, reservation_token,
@@ -265,8 +289,10 @@ games; the client retries its WebSocket and returns to Play when the room is gon
   be a winner, and it never learns that it lost: agents are not told what an
   eliminated seat was. `Seat.disqualified` is server-private and never
   broadcast either, since naming the punished seats would expose them as AIs.
-  The planned hardcore mode is the exception that would drop this penalty; it
-  is not implemented yet.
+  **Hardcore rooms drop this penalty entirely**: no seat is ever disqualified,
+  the agents are told so, and a surviving AI wins whatever it eliminated. Every
+  other terminal rule below is identical in both rulesets, including the shared
+  final duel.
 - If every surviving AI is disqualified, the humans win. A last human facing a
   disqualified AI is therefore a plain human victory, not the shared duel.
 - A final human and AI ends in a shared victory (`winner: "draw"`): the ballot

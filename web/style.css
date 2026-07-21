@@ -316,6 +316,20 @@ main > section { flex: 1 1 auto; min-width: 0; min-height: 0; }
 }
 .play-btn b { font-size: 1.35rem; line-height: 1; }
 .play-btn:hover:not(:disabled) { background: var(--orange-bright) !important; }
+/* Mode hardcore : même bouton, autre couleur. Le rouge est le seul signal
+   avant l'entrée en partie, avec la note qui le suit. */
+.play-btn--hardcore { margin-top: 10px; background: var(--red) !important; color: #fff2ee !important; }
+.play-btn--hardcore:hover:not(:disabled) { background: #ff2a1f !important; }
+.hardcore-note {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  color: #c98b84;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  text-align: left;
+}
+.hardcore-btn { background: var(--red) !important; color: #fff2ee !important; }
+.hardcore-btn:hover:not(:disabled) { background: #ff2a1f !important; }
 .join-console label { display: flex; min-width: 0; flex-direction: column; gap: 5px; text-align: left; }
 .join-console label > span {
   color: var(--muted);
@@ -838,6 +852,37 @@ body[data-screen="join"] .play-btn:hover:not(:disabled) {
   color: #151524 !important;
   transform: translate(4px, 4px);
 }
+/* Sur la page d'accueil, le bouton hardcore reprend exactement la géométrie du
+   bouton orange (même ombre portée, même translation au survol) et n'en change
+   que la couleur. */
+body[data-screen="join"] .play-btn--hardcore {
+  margin-top: 12px;
+  background: #e10500 !important;
+  box-shadow: 7px 7px 0 #ff5229;
+  color: #fff2ee !important;
+}
+body[data-screen="join"] .play-btn--hardcore:hover:not(:disabled) {
+  background: #ff5229 !important;
+  box-shadow: 3px 3px 0 #e10500;
+  color: #151524 !important;
+}
+body[data-screen="join"] .hardcore-note {
+  margin: 10px 0 0;
+  color: #d78a80;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+}
+body[data-screen="join"] #join-hardcore-btn {
+  border: 1px solid #e10500;
+  background: var(--landing-bg);
+  color: #ff7d74;
+  clip-path: none;
+}
+body[data-screen="join"] #join-hardcore-btn:hover:not(:disabled) {
+  border-color: #e10500;
+  background: #e10500 !important;
+  color: #fff2ee !important;
+}
 body[data-screen="join"] .turnstile-container {
   display: flex;
   margin-top: 12px;
@@ -1083,6 +1128,22 @@ body[data-screen="join"] .hackathon-credit a:hover { color: #fa500f; }
 
 /* Left: mission panel — metrics + live feed */
 .mission-panel { display: flex; min-height: 0; flex-direction: column; padding: 14px 14px 10px; }
+/* Badge de règlement : invisible en partie standard, rouge en hardcore. Le
+   mode arrive dans room_state et se pose sur `body[data-mode]`. */
+.mode-badge { display: none; }
+body[data-mode="hardcore"] .mode-badge {
+  display: block;
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--red);
+  background: rgba(225, 5, 0, 0.16);
+  color: #ff7d74;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-align: center;
+  text-transform: uppercase;
+}
 .metric-row {
   display: flex;
   align-items: baseline;
@@ -2453,6 +2514,11 @@ body[data-screen="game"] textarea:focus-visible {
 }
 .rules-card ol,
 .rules-card ul { margin: 0; padding-left: 18px; }
+/* Les deux règlements ne diffèrent que sur la sanction du vote contre un
+   humain : chaque variante n'apparaît que dans son mode. */
+.rules-hardcore { display: none; }
+body[data-mode="hardcore"] .rules-standard { display: none; }
+body[data-mode="hardcore"] .rules-hardcore { display: list-item; }
 .rules-card li,
 .rules-card section p {
   margin: 0 0 9px;

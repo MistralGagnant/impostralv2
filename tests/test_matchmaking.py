@@ -74,6 +74,31 @@ class MatchmakingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(english.language, "en")
         self.assertEqual(french.language, "fr")
 
+    async def test_public_matchmaking_is_partitioned_by_ruleset(self) -> None:
+        standard, _, _ = await self.manager.matchmake(
+            "player_0001", "session_0001", "en"
+        )
+        hardcore, _, _ = await self.manager.matchmake(
+            "player_0002", "session_0002", "en", "hardcore"
+        )
+        companion, _, created = await self.manager.matchmake(
+            "player_0003", "session_0003", "en", "hardcore"
+        )
+
+        self.assertNotEqual(standard.id, hardcore.id)
+        self.assertEqual(standard.mode, "standard")
+        self.assertEqual(hardcore.mode, "hardcore")
+        self.assertFalse(hardcore.hardcore is False)
+        # Deux joueurs hardcore se retrouvent bien dans le même salon.
+        self.assertIs(companion, hardcore)
+        self.assertFalse(created)
+
+    async def test_an_unknown_mode_falls_back_to_the_standard_ruleset(self) -> None:
+        room, _, _ = await self.manager.matchmake(
+            "player_0001", "session_0001", "en", "HARDCORE-ish"
+        )
+        self.assertEqual(room.mode, "standard")
+
     async def test_matchmaking_retry_keeps_its_original_room_language(self) -> None:
         first, token, _ = await self.manager.matchmake(
             "player_0001", "session_0001", "fr"
@@ -249,6 +274,25 @@ class MatchmakingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error, "")
         self.assertIs(joined_room, room)
         self.assertEqual(joined_room.language, "fr")
+
+    async def test_private_ruleset_is_fixed_by_its_creator(self) -> None:
+        room, _, _ = await self.manager.create_private_and_reserve(
+            "amis",
+            num_humans=2,
+            num_llms=1,
+            player_id="player_0001",
+            session_id="session_0001",
+            mode="hardcore",
+        )
+        joined_room, _, error = await self.manager.reserve_private(
+            "amis", "player_0002", "session_0002"
+        )
+
+        self.assertEqual(error, "")
+        self.assertIs(joined_room, room)
+        # Rejoindre n'offre aucun choix : le règlement vient du salon.
+        self.assertEqual(joined_room.mode, "hardcore")
+        self.assertTrue(joined_room.hardcore)
 
     async def test_disconnected_waiting_seat_is_released_after_the_grace_period(self) -> None:
         room, token, _ = await self.manager.matchmake("player_0001", "session_0001")

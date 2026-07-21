@@ -21,6 +21,7 @@ from .agents.registry import AgentBuildSpec, create_agent
 from .config import get_settings
 from .game.events import Phase, srv_answer_turn
 from .i18n import normalize_language
+from .modes import DEFAULT_MODE, is_hardcore, normalize_mode
 
 log = logging.getLogger("impostral.rooms")
 
@@ -43,7 +44,8 @@ class Seat:
     eliminated_round: Optional[int] = None
     # An AI seat whose decisive ballot eliminated a human. It keeps playing but
     # can no longer win. Server-private: naming it publicly would expose the
-    # seat as an AI. Hardcore mode (unimplemented) would drop this penalty.
+    # seat as an AI. Hardcore rooms never set this: there, surviving is all an
+    # AI is asked to do.
     disqualified: bool = False
     # Anonymous browser identity. These values are server-private and never
     # included by `public`.
@@ -92,6 +94,8 @@ class Seat:
 class Room:
     id: str
     language: str = "en"
+    # Immutable ruleset chosen at creation: "standard" or "hardcore".
+    mode: str = DEFAULT_MODE
     visibility: str = "private"  # "public" matchmaking or "private" code.
     status: str = "waiting"  # "waiting" | "running" | "finished".
     # Composition chosen when the lobby is created. Defaults are filled from
@@ -154,6 +158,11 @@ class Room:
     )
     ever_occupied: bool = False
 
+    @property
+    def hardcore(self) -> bool:
+        """Return whether this room drops the human-hunting penalty."""
+        return is_hardcore(self.mode)
+
     # ------------------------------------------------------------------
     # Composition
     # ------------------------------------------------------------------
@@ -213,6 +222,7 @@ class Room:
                         language=self.language,
                         seed=secrets.randbits(128),
                         answer_variant=agent_index,
+                        hardcore=self.hardcore,
                     ),
                 )
                 if self.language not in seat.agent.identity.supported_languages:
@@ -626,6 +636,7 @@ class RoomManager:
         num_llms: Optional[int] = None,
         visibility: str = "private",
         language: str = "en",
+        mode: str = DEFAULT_MODE,
     ) -> Optional[Room]:
         """Create a lobby with the chosen composition.
 
@@ -638,6 +649,7 @@ class RoomManager:
         room = Room(
             id=room_id,
             language=normalize_language(language),
+            mode=normalize_mode(mode),
             visibility=visibility,
             num_humans=settings.num_humans if num_humans is None else num_humans,
             num_llms=settings.num_llms if num_llms is None else num_llms,
@@ -645,14 +657,14 @@ class RoomManager:
         room.setup_seats()
         self._rooms[room_id] = room
         log.info(
-            "Lobby created: %s (%d humans, %d AIs)",
-            room_id, room.num_humans, room.num_llms,
+            "Lobby created: %s (%d humans, %d AIs, %s)",
+            room_id, room.num_humans, room.num_llms, room.mode,
         )
         return room
 
     async def create_private(
         self, room_id: str, *, num_humans: int, num_llms: int,
-        language: str = "en",
+        language: str = "en", mode: str = DEFAULT_MODE,
     ) -> Optional[Room]:
         async with self._lock:
             self._cleanup_locked()
@@ -662,6 +674,7 @@ class RoomManager:
                 num_llms=num_llms,
                 visibility="private",
                 language=language,
+                mode=mode,
             )
 
     async def create_private_and_reserve(
@@ -673,6 +686,7 @@ class RoomManager:
         player_id: str,
         session_id: str,
         language: str = "en",
+        mode: str = DEFAULT_MODE,
     ) -> tuple[Optional[Room], str, bool]:
         """Atomically create a private room and reserve its creator's seat."""
         settings = get_settings()
@@ -707,6 +721,7 @@ class RoomManager:
                 num_llms=num_llms,
                 visibility="private",
                 language=language,
+                mode=mode,
             )
             if room is None:  # Defensive: the manager lock prevents a race.
                 return None, "", False
@@ -762,7 +777,11 @@ class RoomManager:
             return room, token, ""
 
     async def matchmake(
-        self, player_id: str, session_id: str, language: str = "en"
+        self,
+        player_id: str,
+        session_id: str,
+        language: str = "en",
+        mode: str = DEFAULT_MODE,
     ) -> tuple[Room, str, bool]:
         """Atomically reserve the first seat in the oldest public lobby."""
         settings = get_settings()
@@ -770,6 +789,7 @@ class RoomManager:
             self._cleanup_locked()
             now = time.time()
             normalized_language = normalize_language(language)
+            normalized_mode = normalize_mode(mode)
             all_candidates = sorted(
                 (
                     room
@@ -797,10 +817,14 @@ class RoomManager:
                 if existing is not None:
                     return candidate, existing.reservation_token, False
 
+            # A hardcore player must never land in a standard game, and the
+            # reverse would be worse: the queues are partitioned by ruleset
+            # exactly as they already are by room language.
             candidates = [
                 room
                 for room in all_candidates
                 if room.language == normalized_language
+                and room.mode == normalized_mode
             ]
 
             room = None
@@ -821,6 +845,7 @@ class RoomManager:
                         num_llms=settings.num_llms,
                         visibility="public",
                         language=normalized_language,
+                        mode=normalized_mode,
                     )
                     if room is not None:
                         created = True

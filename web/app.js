@@ -105,7 +105,9 @@
   const inputControls = $("input-controls");
   const inputTimer = $("input-timer");
   const playBtn = $("play-btn");
+  const playHardcoreBtn = $("play-hardcore-btn");
   const joinBtn = $("join-btn");
+  const joinHardcoreBtn = $("join-hardcore-btn");
   const joinHint = $("join-hint");
   const turnstileContainer = $("turnstile-container");
   const humansField = $("humans-field");
@@ -172,7 +174,8 @@
       ) return;
     }
     if (event.target?.closest?.(
-      "#sound-toggle, #play-btn, #join-btn, #rules-btn, #rules-dialog, a",
+      "#sound-toggle, #play-btn, #play-hardcore-btn, #join-btn,"
+      + " #join-hardcore-btn, #rules-btn, #rules-dialog, a",
     )) return;
     await S.startLandingFromGesture();
   }
@@ -432,7 +435,10 @@
     roomInput.placeholder = joining ? t("landing.lobby_code_ask") : "";
     roomInput.classList.toggle("field-missing", missing);
     roomInput.setAttribute("aria-invalid", String(missing));
-    if (!admissionInFlight) joinBtn.disabled = missing;
+    if (!admissionInFlight) {
+      joinBtn.disabled = missing;
+      joinHardcoreBtn.disabled = missing;
+    }
   }
 
   let mode = "create";
@@ -450,9 +456,12 @@
     modeCreate.setAttribute("aria-selected", String(creating));
     modeJoin.setAttribute("aria-selected", String(!creating));
     humansField.classList.toggle("hidden", !creating);
+    // On ne choisit le règlement qu'en créant : rejoindre adopte celui de l'hôte.
+    joinHardcoreBtn.classList.toggle("hidden", !creating);
     joinBtn.querySelector("span").textContent = creating
       ? t("landing.create_enter")
       : t("landing.join");
+    joinHardcoreBtn.querySelector("span").textContent = t("landing.create_hardcore");
     joinHint.textContent = "";
     syncRoomField();
   }
@@ -500,13 +509,17 @@
   // ------------------------------------------------------------------
   // Connection
   // ------------------------------------------------------------------
-  playBtn.addEventListener("click", play);
-  joinBtn.addEventListener("click", enterRoom);
+  // Le règlement ("standard" ou "hardcore") est porté par le bouton cliqué :
+  // il part avec l'admission et devient immuable pour tout le salon.
+  playBtn.addEventListener("click", () => play("standard"));
+  playHardcoreBtn.addEventListener("click", () => play("hardcore"));
+  joinBtn.addEventListener("click", () => enterRoom("standard"));
+  joinHardcoreBtn.addEventListener("click", () => enterRoom("hardcore"));
   $("name-input").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") play();
+    if (event.key === "Enter") play("standard");
   });
   $("room-input").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") enterRoom();
+    if (event.key === "Enter") enterRoom("standard");
   });
 
   function connectionActive() {
@@ -518,7 +531,9 @@
     admissionInFlight = true;
     admissionGeneration += 1;
     playBtn.disabled = true;
+    playHardcoreBtn.disabled = true;
     joinBtn.disabled = true;
+    joinHardcoreBtn.disabled = true;
     setLanguageControlsDisabled(true);
     return admissionGeneration;
   }
@@ -543,11 +558,15 @@
   function restoreEntryButtons() {
     playBtn.disabled = false;
     playBtn.querySelector("span").textContent = t("landing.enter");
+    playHardcoreBtn.disabled = false;
+    playHardcoreBtn.querySelector("span").textContent = t("landing.enter_hardcore");
     joinBtn.disabled = false;
+    joinHardcoreBtn.disabled = false;
     setLanguageControlsDisabled(false);
     joinBtn.querySelector("span").textContent = mode === "create"
       ? t("landing.create_enter")
       : t("landing.join");
+    joinHardcoreBtn.querySelector("span").textContent = t("landing.create_hardcore");
     syncRoomField();
   }
 
@@ -556,15 +575,15 @@
     return isCurrentAdmission(generation) && (!livePhase || livePhase === "lobby");
   }
 
-  async function play() {
-    const admission = beginAdmission(playBtn);
+  async function play(ruleset = "standard") {
+    const entryBtn = ruleset === "hardcore" ? playHardcoreBtn : playBtn;
+    const admission = beginAdmission(entryBtn);
     if (!admission) return;
     void unlockSound("entry", () => entrySoundIsRelevant(admission));
     resetSoundCues();
     gameFinished = false;
     const securityCheckReady = hasFreshTurnstileToken();
-    playBtn.disabled = true;
-    playBtn.querySelector("span").textContent = securityCheckReady
+    entryBtn.querySelector("span").textContent = securityCheckReady
       ? t("entry.finding")
       : t("entry.checking");
     joinHint.textContent = securityCheckReady
@@ -573,7 +592,7 @@
     try {
       const turnstileToken = await requestTurnstileToken();
       if (!isCurrentAdmission(admission)) return;
-      playBtn.querySelector("span").textContent = t("entry.finding");
+      entryBtn.querySelector("span").textContent = t("entry.finding");
       joinHint.textContent = t("entry.looking");
       const response = await fetch("/matchmaking", {
         method: "POST",
@@ -584,6 +603,7 @@
           name: ($("name-input").value || "").trim(),
           turnstile_token: turnstileToken,
           language,
+          mode: ruleset,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -595,6 +615,7 @@
         quick: true,
         name: ($("name-input").value || "").trim(),
         language: body.language || language,
+        mode: body.mode || ruleset,
       };
       saveCurrentMatch(match);
       connect(match, { admissionToken: admission });
@@ -610,19 +631,21 @@
     }
   }
 
-  async function enterRoom() {
+  async function enterRoom(ruleset = "standard") {
     const room = (roomInput.value || "").trim();
     if (!room) { joinHint.textContent = t("entry.room_required"); return; }
 
-    const admission = beginAdmission(joinBtn);
+    // Le bouton hardcore ne s'affiche qu'en création, mais on le verrouille
+    // quand même : rejoindre n'a jamais le droit de choisir le règlement.
+    const creating = mode === "create";
+    const entryBtn = creating && ruleset === "hardcore" ? joinHardcoreBtn : joinBtn;
+    const admission = beginAdmission(entryBtn);
     if (!admission) return;
     void unlockSound("entry", () => entrySoundIsRelevant(admission));
     resetSoundCues();
     gameFinished = false;
-    const creating = mode === "create";
     const securityCheckReady = hasFreshTurnstileToken();
-    joinBtn.disabled = true;
-    joinBtn.querySelector("span").textContent = securityCheckReady
+    entryBtn.querySelector("span").textContent = securityCheckReady
       ? (creating ? t("entry.creating") : t("entry.joining"))
       : t("entry.checking");
     joinHint.textContent = securityCheckReady
@@ -648,6 +671,7 @@
       if (creating) {
         payload.name = room;
         payload.num_humans = parseInt(humansInput.value, 10) || undefined;
+        payload.mode = ruleset;
       }
       const response = await fetch(url, {
         method: "POST",
@@ -669,6 +693,8 @@
         quick: false,
         name: ($("name-input").value || "").trim(),
         language: body.language || language,
+        // Le serveur fait autorité : en rejoignant, c'est le salon qui décide.
+        mode: body.mode || (creating ? ruleset : "standard"),
       };
       saveCurrentMatch(match);
       connect(match, { admissionToken: admission });
@@ -696,8 +722,12 @@
     adoptLanguage(match.language || language);
     const serial = ++connectionSerial;
     const proto = location.protocol === "https:" ? "wss" : "ws";
+    // Le badge du HUD suit le salon ; room_state le confirmera à l'arrivée.
+    document.body.dataset.mode = match.mode === "hardcore" ? "hardcore" : "standard";
     playBtn.disabled = true;
+    playHardcoreBtn.disabled = true;
     joinBtn.disabled = true;
+    joinHardcoreBtn.disabled = true;
     joinBtn.querySelector("span").textContent = t("connection.connecting");
     playBtn.querySelector("span").textContent = reconnecting
       ? t("connection.reconnecting")
@@ -816,6 +846,7 @@
     joinScreen.classList.remove("hidden");
     document.body.dataset.screen = "join";
     document.body.dataset.phase = "lobby";
+    document.body.dataset.mode = "standard";
     adoptLanguage(I?.preferred || language);
     S?.returnToLanding?.();
     S?.setPhase("lobby");
@@ -874,6 +905,14 @@
 
   function onRoomState(msg) {
     if (msg.language) adoptLanguage(msg.language);
+    if (msg.mode) {
+      // Le règlement du salon est public et immuable : il pilote le badge du
+      // HUD et la version hardcore des règles.
+      document.body.dataset.mode = msg.mode;
+      if (currentMatch && currentMatch.mode !== msg.mode) {
+        saveCurrentMatch({ ...currentMatch, mode: msg.mode });
+      }
+    }
     const previousSeats = new Map(seats.map((seat) => [seat.id, seat]));
     seats = msg.seats.map((seat) => {
       const previous = previousSeats.get(seat.id) || {};
@@ -1951,8 +1990,12 @@
   }
 
   resultReplay.addEventListener("click", () => {
+    // Rejouer relance le règlement de la partie qui vient de se terminer.
+    const ruleset = document.body.dataset.mode === "hardcore"
+      ? "hardcore"
+      : "standard";
     returnToJoin("");
-    void play();
+    void play(ruleset);
   });
   resultMenu.addEventListener("click", () => returnToJoin(""));
 

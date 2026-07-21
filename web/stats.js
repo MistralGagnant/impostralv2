@@ -244,16 +244,54 @@
     return wrap;
   }
 
+  // The two rulesets are reported side by side but never mixed: a hardcore
+  // agent is rewarded for eliminating humans, so its numbers say something
+  // else entirely. Games recorded before hardcore existed count as standard.
+  const MODES = ["standard", "hardcore"];
+  let selectedMode = "standard";
+  let lastPayload = null;
+
+  const modeTabs = document.getElementById("mode-tabs");
+  const modeButtons = modeTabs
+    ? [...modeTabs.querySelectorAll("[data-mode]")]
+    : [];
+
+  function modeView(payload, mode) {
+    // An older server without the split still answers with the flat shape.
+    return payload?.modes?.[mode] || (mode === "standard" ? payload : null);
+  }
+
+  function syncModeTabs(payload) {
+    for (const button of modeButtons) {
+      const mode = button.dataset.mode;
+      const view = modeView(payload, mode);
+      const games = view?.total_games || 0;
+      // An empty ruleset stays visible only when it is the selected one, so
+      // the page never shows a tab that leads nowhere.
+      button.classList.toggle("hidden", !games && mode !== selectedMode);
+      button.setAttribute("aria-selected", String(mode === selectedMode));
+    }
+  }
+
+  for (const button of modeButtons) {
+    button.addEventListener("click", () => {
+      selectedMode = MODES.includes(button.dataset.mode)
+        ? button.dataset.mode
+        : "standard";
+      if (lastPayload) render(lastPayload);
+    });
+  }
+
   async function load() {
     const content = document.getElementById("content");
     content.textContent = "";
     content.appendChild(stateCard("Loading…", "Reading the results log."));
 
-    let data;
+    let payload;
     try {
       const res = await fetch("/stats");
       if (!res.ok) throw new Error("bad status " + res.status);
-      data = await res.json();
+      payload = await res.json();
     } catch (err) {
       content.textContent = "";
       content.appendChild(stateCard(
@@ -262,15 +300,28 @@
       return;
     }
 
+    lastPayload = payload;
+    // Land on the ruleset that actually has games behind it.
+    if (!modeView(payload, selectedMode)?.total_games) {
+      selectedMode = MODES.find((mode) => modeView(payload, mode)?.total_games)
+        || "standard";
+    }
+    render(payload);
+  }
+
+  function render(payload) {
+    const content = document.getElementById("content");
+    syncModeTabs(payload);
+    const data = modeView(payload, selectedMode) || { models: [], total_games: 0 };
+    content.textContent = "";
+
     if (!data.models || data.models.length === 0) {
-      content.textContent = "";
       content.appendChild(stateCard(
-        "No games recorded yet",
+        `No ${selectedMode} games recorded yet`,
         "Finish a game and this dashboard will fill with model performance."));
       return;
     }
 
-    content.textContent = "";
     content.appendChild(heroTiles(data));
 
     const { ranked, unranked } = orderRows(data.models);
@@ -295,7 +346,8 @@
     const legacy = data.legacy_games_without_humans || 0;
     const meta = el("p", "st-meta");
     meta.textContent =
-      `${data.total_games} game${data.total_games === 1 ? "" : "s"} recorded. ` +
+      `${data.total_games} ${selectedMode} ` +
+      `game${data.total_games === 1 ? "" : "s"} recorded. ` +
       "Win rate counts winning appearances, survival counts seats still alive " +
       "at game end, and AI target rate is the share of a player's votes that " +
       "correctly hit an AI." +

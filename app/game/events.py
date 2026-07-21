@@ -96,6 +96,7 @@ def srv_room_state(
     round_limit: Optional[int] = None,
     answers: Optional[dict[str, str]] = None,
     language: str = "en",
+    mode: str = "standard",
 ) -> dict:
     return {
         "type": "room_state",
@@ -116,6 +117,8 @@ def srv_room_state(
         "round_limit": round_limit,
         "answers": answers or {},
         "language": language,
+        # Public and role-safe: the ruleset is chosen before anyone is seated.
+        "mode": mode,
     }
 
 

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..config import get_settings
+from ..modes import DEFAULT_MODE, SUPPORTED_MODES, normalize_mode, ruleset_id
 
 log = logging.getLogger("impostral.stats")
 
@@ -57,12 +58,14 @@ def record_game(room, winners: list[str]) -> None:
             for seat in room.seats.values()
             if seat.kind == "human"
         ]
+        mode = normalize_mode(getattr(room, "mode", DEFAULT_MODE))
         record = {
             "ts": datetime.now(timezone.utc).isoformat(),
             "room": room.id,
             "winners": winners,
             "rounds": rounds,
-            "ruleset": "independent-survival.v2",
+            "mode": mode,
+            "ruleset": ruleset_id(mode),
             "question_deck": "trace-to-alibi.v1",
             "language": getattr(room, "language", "en"),
             "composition": {
@@ -104,10 +107,8 @@ def _read_records() -> list[dict]:
     return records
 
 
-def aggregate() -> dict:
-    """Return per-model aggregates plus the total number of recorded games."""
-    records = _read_records()
-
+def _aggregate_records(records: list[dict]) -> dict:
+    """Return per-model aggregates over one already selected set of games."""
     # Accumulators keyed by model name.
     acc: dict[str, dict] = {}
 
@@ -177,4 +178,29 @@ def aggregate() -> dict:
         "total_games": len(records),
         "legacy_games_without_humans": legacy_games_without_humans,
         "models": models,
+    }
+
+
+def aggregate() -> dict:
+    """Return combined aggregates plus one identical breakdown per ruleset.
+
+    The top-level keys keep their original meaning — every recorded game, both
+    rulesets mixed — so an existing consumer is unaffected. `modes` splits the
+    same numbers per ruleset, because a hardcore agent hunting humans is not
+    comparable to a standard one. Records written before hardcore existed have
+    no `mode` and are counted as standard games.
+    """
+    records = _read_records()
+    return {
+        **_aggregate_records(records),
+        "modes": {
+            mode: _aggregate_records(
+                [
+                    record
+                    for record in records
+                    if normalize_mode(record.get("mode")) == mode
+                ]
+            )
+            for mode in SUPPORTED_MODES
+        },
     }

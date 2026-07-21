@@ -19,6 +19,7 @@ from .config import get_settings
 from .game import events, questions, stats
 from .game.state_machine import GameEngine
 from .i18n import SUPPORTED_LANGUAGES, normalize_language, tr
+from .modes import SUPPORTED_MODES, normalize_mode
 from .rooms import rooms
 from .turnstile import GAME_ENTRY_ACTION, verify_turnstile
 
@@ -128,6 +129,8 @@ async def public_config() -> dict:
         "turnstile_site_key": s.turnstile_site_key if s.turnstile_required else "",
         "default_language": "en",
         "supported_languages": list(SUPPORTED_LANGUAGES),
+        "default_mode": "standard",
+        "supported_modes": list(SUPPORTED_MODES),
     }
 
 
@@ -138,6 +141,7 @@ class CreateLobbyRequest(BaseModel):
     session_id: str = ""
     turnstile_token: str = Field("", max_length=2048)
     language: str = Field("en", max_length=20)
+    mode: str = Field("standard", max_length=20)
 
 
 class JoinLobbyRequest(BaseModel):
@@ -153,6 +157,7 @@ class MatchmakingRequest(BaseModel):
     name: str = ""
     turnstile_token: str = Field("", max_length=2048)
     language: str = Field("en", max_length=20)
+    mode: str = Field("standard", max_length=20)
 
 
 _CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
@@ -229,6 +234,7 @@ async def create_lobby(req: CreateLobbyRequest, request: Request) -> JSONRespons
         player_id=req.player_id,
         session_id=req.session_id,
         language=normalize_language(req.language),
+        mode=normalize_mode(req.mode),
     )
     if room is None:
         return JSONResponse({"error": "exists", "name": name}, status_code=409)
@@ -239,6 +245,7 @@ async def create_lobby(req: CreateLobbyRequest, request: Request) -> JSONRespons
             "num_llms": room.num_llms,
             "reservation_token": token,
             "language": room.language,
+            "mode": room.mode,
         }
     )
 
@@ -267,10 +274,12 @@ async def join_lobby(
         return JSONResponse({"error": "started", "name": name}, status_code=409)
     if error == "full":
         return JSONResponse({"error": "full", "name": name}, status_code=409)
+    # A joiner never picks the ruleset: it comes from the lobby it joins.
     return JSONResponse({
         "name": room.id,
         "reservation_token": token,
         "language": room.language,
+        "mode": room.mode,
     })
 
 
@@ -286,12 +295,14 @@ async def matchmaking(req: MatchmakingRequest, request: Request) -> JSONResponse
         req.player_id,
         req.session_id,
         normalize_language(req.language),
+        normalize_mode(req.mode),
     )
     return JSONResponse({
         "room_id": room.id,
         "reservation_token": token,
         "created": created,
         "language": room.language,
+        "mode": room.mode,
     })
 
 
@@ -368,6 +379,7 @@ def _room_state(room, *, you: Optional[str] = None) -> dict:
         ),
         answers=room.current_answers,
         language=room.language,
+        mode=room.mode,
     )
 
 
