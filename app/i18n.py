@@ -36,8 +36,9 @@ _COPY: dict[str, dict[str, str]] = {
         "agents_no_humans": (
             "{winners} survived independently. No human remains."
         ),
-        "agents_final_two": (
-            "{winner} reached the final duel undetected and wins individually."
+        "final_duel_shared": (
+            "{human} survived to the final duel and {agent} was never exposed. "
+            "Both sides win."
         ),
         "agents_round_limit_one": (
             "{winner} remained undetected at the round limit and wins individually."
@@ -47,6 +48,10 @@ _COPY: dict[str, dict[str, str]] = {
             "individually."
         ),
         "humans_win": "The humans have won — every AI was eliminated.",
+        "humans_win_hunted": (
+            "The humans have won. Every AI still hidden had voted a human out, "
+            "which costs an AI the game."
+        ),
         "no_winner": "No winner could be determined.",
         "game_over": "Game over. {result}",
         "internal_error": "An internal error interrupted the game.",
@@ -82,8 +87,9 @@ _COPY: dict[str, dict[str, str]] = {
         "agents_no_humans": (
             "{winners} ont survécu chacun pour soi. Il ne reste aucun humain."
         ),
-        "agents_final_two": (
-            "{winner} atteint le duel final sans être démasqué et gagne seul."
+        "final_duel_shared": (
+            "{human} survit jusqu’au duel final et {agent} n’a jamais été "
+            "démasquée. Les deux camps gagnent."
         ),
         "agents_round_limit_one": (
             "{winner} reste indétecté à la fin des manches et gagne seul."
@@ -93,6 +99,10 @@ _COPY: dict[str, dict[str, str]] = {
             "chacun individuellement."
         ),
         "humans_win": "Les humains ont gagné — toutes les IA ont été éliminées.",
+        "humans_win_hunted": (
+            "Les humains ont gagné. Chaque IA encore cachée avait fait "
+            "éliminer un humain, ce qui lui coûte la partie."
+        ),
         "no_winner": "Aucun vainqueur n’a pu être déterminé.",
         "game_over": "Fin de partie. {result}",
         "internal_error": "Une erreur interne a interrompu la partie.",

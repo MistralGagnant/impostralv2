@@ -41,6 +41,10 @@ class Seat:
     votes_total: int = 0
     votes_correct: int = 0  # Votes correctly targeting an AI.
     eliminated_round: Optional[int] = None
+    # An AI seat whose decisive ballot eliminated a human. It keeps playing but
+    # can no longer win. Server-private: naming it publicly would expose the
+    # seat as an AI. Hardcore mode (unimplemented) would drop this penalty.
+    disqualified: bool = False
     # Anonymous browser identity. These values are server-private and never
     # included by `public`.
     player_id: str = ""

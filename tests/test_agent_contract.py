@@ -250,7 +250,7 @@ class AgentContractTest(unittest.IsolatedAsyncioTestCase):
                 spoken = [agent._mock_answer(card.prompt) for agent in agents]
                 self.assertEqual(len(set(spoken)), len(agents))
 
-    def test_engine_projection_includes_the_same_public_vote_and_reveal_history(self) -> None:
+    def test_engine_projection_shares_public_history_without_any_role(self) -> None:
         human = Seat(
             id="Player A",
             kind="human",
@@ -312,12 +312,25 @@ class AgentContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(next(
             seat for seat in view.seats if seat.seat_id == "Player A"
         ).revealed_role)
-        self.assertEqual(next(
+        # Agents see that a seat left the table but never what it was, so an
+        # agent that voted a human out keeps playing without knowing it lost.
+        self.assertIsNone(next(
             seat for seat in view.seats if seat.seat_id == "Player B"
-        ).revealed_role, "human")
+        ).revealed_role)
+        self.assertIsNone(next(
+            event for event in view.events if event.kind == "elimination"
+        ).revealed_role)
+        self.assertNotIn("human", payload)
         self.assertNotIn("Private Browser Name", payload)
         self.assertNotIn("private-player-id", payload)
         self.assertNotIn("connected", payload)
+
+        # The terminal reveal is the one moment agents learn who was what.
+        final = engine._public_view(phase="game_over")
+        self.assertEqual(
+            {seat.seat_id: seat.revealed_role for seat in final.seats},
+            {"Player A": "human", "Player B": "human", "Player C": "llm"},
+        )
 
     async def test_context_request_contains_only_delimited_public_state(self) -> None:
         agent = LLMAgent("Player A", 0, seed=9)

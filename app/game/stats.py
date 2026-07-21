@@ -34,6 +34,8 @@ def record_game(room, winners: list[str]) -> None:
                 "seat": seat.id,
                 "won": seat.id in winners,
                 "survived": seat.alive,
+                # Voted a human out, so it could not win whatever it survived.
+                "disqualified": bool(getattr(seat, "disqualified", False)),
                 "eliminated_round": seat.eliminated_round,
                 "votes_total": seat.votes_total,
                 "votes_correct": seat.votes_correct,

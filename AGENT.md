@@ -39,7 +39,8 @@ public lobby with the default composition. The browser opens the room WebSocket
 with that short-lived reservation ticket; public players are automatically ready
 and the game starts when all human seats are connected or after a configurable
 15-second wait, provided at least `IMPOSTRAL_MIN_PUBLIC_START_HUMANS` humans are
-present (humans can only win with two or more seats). Below that floor the wait
+present (a lone human can only reach the shared final-duel victory). Below that
+floor the wait
 extends up to `IMPOSTRAL_MAX_PUBLIC_START_EXTENSIONS` times, then starts anyway so
 a lone player is never stranded. Public queues are partitioned
 by room language. The landing menu offers an explicit EN/FR selector, remembers
@@ -126,7 +127,8 @@ rotated on the seat's rank among the room's agents through
 
 Each finished game appends a JSON record to `IMPOSTRAL_STATS_PATH` (default
 `data/results.jsonl`). `app/game/stats.py` records each model's win, survival,
-elimination round, and competitive vote accuracy. Humans are recorded too, but
+elimination round, competitive vote accuracy, and whether the seat was
+disqualified for voting a human out. Humans are recorded too, but
 grouped anonymously into a single `Humans` bucket (never per pseudonym), so the
 dashboard compares humans against each AI model. `/stats` exposes aggregates and
 `/stats.html` renders the player comparison dashboard. Records created before
@@ -170,7 +172,10 @@ scramble, reveal flow. Every active seat prepares privately and in parallel duri
 window from the same prior-round transcript. Text survives a slow TTS call.
 Locked answers are then revealed one at a time in a fresh randomized order.
 No seat can copy an answer revealed earlier in the same round, and agents never
-receive role information.
+receive role information. That includes eliminated seats: the humans are told
+what an eliminated player was, the agents are not. `_public_view` fills
+`revealed_role` only once the phase is `game_over`, so an agent that voted a
+human out plays the rest of the match without knowing it has already lost.
 Connection state is server-private because exposing it would identify human
 seats.
 
@@ -193,7 +198,7 @@ seats.
 | `app/audio/stt.py` / `tts.py` | Voxtral wrappers with graceful fallback. |
 | `app/audio/voices.py` | Cached preset voice pool, room language first. |
 | `app/audio/store.py` | Ephemeral FIFO audio store served from `/audio/{id}`. |
-| `web/` | 3D arena, adaptive Web Audio, model statistics dashboard, and phase UI. |
+| `web/` | 3D arena, adaptive Web Audio, model statistics dashboard, phase UI, and the header **Rules** dialog stating the victory, draw, and disqualification conditions. |
 
 ## WebSocket protocol
 
@@ -253,7 +258,22 @@ games; the client retries its WebSocket and returns to Play when the room is gon
 - A persistent tie uses cumulative public suspicion from prior rounds, then a secure draw only among exact ties.
 - Missing or invalid first-ballot votes count against the silent seat and do not improve its vote-accuracy statistics.
 - The selected seat is eliminated regardless of role, so every completed round eliminates one player.
-- A final human and AI ends with the AI as the sole winner: it survived undetected.
+- An AI that votes a human out loses. Only the agents whose **decisive** ballot
+  named the eliminated human are disqualified — a first ballot replaced by a
+  runoff no longer counts, and a timeout vote falls on the silent seat itself,
+  never on a human. A disqualified agent keeps playing and voting but can never
+  be a winner, and it never learns that it lost: agents are not told what an
+  eliminated seat was. `Seat.disqualified` is server-private and never
+  broadcast either, since naming the punished seats would expose them as AIs.
+  The planned hardcore mode is the exception that would drop this penalty; it
+  is not implemented yet.
+- If every surviving AI is disqualified, the humans win. A last human facing a
+  disqualified AI is therefore a plain human victory, not the shared duel.
+- A final human and AI ends in a shared victory (`winner: "draw"`): the ballot
+  is degenerate, so the last AI can never be exposed. The human is credited for
+  surviving and the AI for staying hidden. Humans win as one side there too, so
+  every human seat is a winner alongside the surviving agent. This is the only
+  way a lone human can win, since exposing every AI is unreachable for them.
 - Once every AI is eliminated, the surviving humans win.
 - At `max_rounds`, every undetected AI wins individually; agents never form a team.
 

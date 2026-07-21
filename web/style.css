@@ -92,6 +92,7 @@ button { cursor: pointer; }
 }
 .hud-nav { display: flex; align-items: center; gap: 10px; }
 .hud-nav a,
+.hud-nav .nav-btn,
 .sound-toggle {
   display: flex;
   min-height: 34px;
@@ -109,8 +110,10 @@ button { cursor: pointer; }
   text-transform: uppercase;
 }
 .hud-nav a:hover,
+.hud-nav .nav-btn:hover,
 .sound-toggle:hover { background: var(--orange); color: #180900; }
 .hud-nav a:focus-visible,
+.hud-nav .nav-btn:focus-visible,
 .sound-toggle:focus-visible {
   outline: 2px solid var(--orange-bright);
   outline-offset: 3px;
@@ -2385,3 +2388,77 @@ body[data-screen="game"] textarea:focus-visible {
   body[data-screen="game"] #input-controls button { min-height: 42px; }
   body[data-screen="game"] .vote-options { grid-template-columns: 1fr; }
 }
+
+/* ------------------------------------------------------------------ */
+/* Rules dialog                                                        */
+/* ------------------------------------------------------------------ */
+.rules-dialog {
+  width: min(760px, calc(100vw - 24px));
+  max-height: min(84vh, 900px);
+  padding: 0;
+  border: 2px solid var(--orange);
+  background: rgba(10, 8, 5, 0.97);
+  box-shadow: 12px 12px 0 rgba(255, 130, 5, 0.16), 0 28px 80px rgba(0, 0, 0, 0.55);
+  color: var(--text);
+  clip-path: polygon(
+    14px 0, 100% 0, 100% calc(100% - 14px),
+    calc(100% - 14px) 100%, 0 100%, 0 14px
+  );
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.rules-dialog::backdrop { background: rgba(4, 3, 2, 0.78); }
+.rules-card { padding: clamp(18px, 3.4vw, 34px); }
+.rules-head {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.rules-head h2 {
+  margin: 0;
+  color: var(--orange);
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 3.4vw, 2.3rem);
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.rules-close {
+  padding: 2px 10px 4px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--orange);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.rules-close:hover { background: var(--orange); color: #180900; }
+.rules-close:focus-visible { outline: 2px solid var(--orange-bright); outline-offset: 3px; }
+.rules-lede {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: clamp(0.74rem, 1.3vw, 0.88rem);
+}
+.rules-card section { margin-top: 22px; }
+.rules-card h3 {
+  margin: 0 0 10px;
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.rules-card ol,
+.rules-card ul { margin: 0; padding-left: 18px; }
+.rules-card li,
+.rules-card section p {
+  margin: 0 0 9px;
+  font-size: clamp(0.76rem, 1.3vw, 0.9rem);
+  line-height: 1.5;
+}
+.rules-card li::marker { color: var(--orange); }
+.rules-card section p:last-child,
+.rules-card li:last-child { margin-bottom: 0; }

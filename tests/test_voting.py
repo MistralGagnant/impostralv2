@@ -38,6 +38,7 @@ class StubSeat:
         self.votes_total = 0
         self.votes_correct = 0
         self.eliminated_round = None
+        self.disqualified = False
 
     def public(self, *, reveal_role: bool = False) -> dict:
         state = {
@@ -135,10 +136,13 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
             "Player C": "mistral-small-latest",
         })
 
-    async def test_an_agent_wins_individually_in_the_final_human_ai_duel(self) -> None:
+    async def test_both_sides_win_the_final_human_ai_duel(self) -> None:
+        eliminated_human = StubSeat("Player C", "human")
+        eliminated_human.alive = False
         room = StubRoom([
             StubSeat("Player A", "human"),
             StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest"),
+            eliminated_human,
         ])
         engine = make_engine(room)
 
@@ -147,10 +151,27 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
             await engine._game_over()
 
         game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
-        self.assertEqual(game_over["winner"], "agents")
-        self.assertEqual(game_over["winners"], ["Player B"])
-        self.assertEqual(game_over["reason"], "agent_reached_final_two")
-        self.assertIn("wins individually", game_over["message"])
+        self.assertEqual(game_over["winner"], "draw")
+        # Humans win as one side, the surviving agent wins for staying hidden.
+        self.assertEqual(
+            game_over["winners"], ["Player A", "Player C", "Player B"]
+        )
+        self.assertEqual(game_over["reason"], "final_duel")
+        self.assertIn("Both sides win", game_over["message"])
+
+    async def test_a_lone_human_wins_the_final_duel_by_surviving(self) -> None:
+        room = StubRoom([
+            StubSeat("Player A", "human"),
+            StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest"),
+        ])
+        engine = make_engine(room)
+
+        with patch("app.game.state_machine.stats.record_game"):
+            await engine._game_over()
+
+        game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
+        self.assertEqual(game_over["winner"], "draw")
+        self.assertEqual(game_over["winners"], ["Player A", "Player B"])
 
     async def test_humans_win_when_every_ai_is_eliminated(self) -> None:
         ai = StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest")
@@ -303,6 +324,125 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
             "role": "human",
             "model": None,
         })
+
+
+    async def test_only_the_agents_that_voted_the_human_out_are_disqualified(
+        self,
+    ) -> None:
+        human = StubSeat("Player A", "human")
+        hunter = StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest")
+        loyal = StubSeat("Player C", "llm", StubAgent(), "mistral-small-latest")
+        other_human = StubSeat("Player D", "human")
+        room = StubRoom([human, hunter, loyal, other_human])
+        engine = make_engine(room)
+        engine._pending_eliminated = human.id
+        engine._last_ballot = {
+            hunter.id: human.id,
+            loyal.id: hunter.id,
+            other_human.id: human.id,
+        }
+
+        with patch("app.game.state_machine.asyncio.sleep", new=AsyncMock()):
+            await engine._resolution_phase()
+
+        self.assertTrue(hunter.disqualified)
+        self.assertFalse(loyal.disqualified)
+        # Humans are never penalised for a bad ballot.
+        self.assertFalse(other_human.disqualified)
+        # The penalty stays private: naming it would expose the AI seats.
+        self.assertNotIn(
+            "disqualified",
+            " ".join(str(message) for message in room.messages).lower(),
+        )
+
+    async def test_eliminating_an_ai_disqualifies_nobody(self) -> None:
+        target = StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest")
+        voter = StubSeat("Player C", "llm", StubAgent(), "mistral-small-latest")
+        room = StubRoom([StubSeat("Player A", "human"), target, voter])
+        engine = make_engine(room)
+        engine._pending_eliminated = target.id
+        engine._last_ballot = {voter.id: target.id}
+
+        with patch("app.game.state_machine.asyncio.sleep", new=AsyncMock()):
+            await engine._resolution_phase()
+
+        self.assertFalse(voter.disqualified)
+
+    async def test_a_runoff_ballot_replaces_the_first_one(self) -> None:
+        first = StubSeat("Player C", "llm", StubAgent(["Player A", "Player B"]))
+        second = StubSeat("Player D", "llm", StubAgent(["Player B", "Player B"]))
+        room = StubRoom([
+            StubSeat("Player A", "human"),
+            StubSeat("Player B", "human"),
+            first,
+            second,
+        ])
+        engine = make_engine(room)
+
+        await engine._collect_ballot([first, second], 1)
+        self.assertEqual(
+            engine._last_ballot, {"Player C": "Player A", "Player D": "Player B"}
+        )
+
+        await engine._collect_ballot([first, second], 1, candidates=["Player B"])
+        # Only the decisive ballot can eliminate anyone, so only it is kept.
+        self.assertEqual(
+            engine._last_ballot, {"Player C": "Player B", "Player D": "Player B"}
+        )
+
+    async def test_a_disqualified_agent_does_not_win_at_the_round_limit(self) -> None:
+        hunter = StubSeat("Player C", "llm", StubAgent(), "mistral-large-latest")
+        hunter.disqualified = True
+        clean = StubSeat("Player D", "llm", StubAgent(), "mistral-small-latest")
+        room = StubRoom([
+            StubSeat("Player A", "human"),
+            StubSeat("Player B", "human"),
+            hunter,
+            clean,
+        ])
+        room.round_no = 5
+        engine = make_engine(room)
+        engine.settings.max_rounds = 5
+
+        with patch("app.game.state_machine.stats.record_game"):
+            await engine._game_over()
+
+        game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
+        self.assertEqual(game_over["winner"], "agents")
+        self.assertEqual(game_over["winners"], ["Player D"])
+
+    async def test_humans_win_when_every_surviving_agent_hunted_a_human(self) -> None:
+        hunter = StubSeat("Player C", "llm", StubAgent(), "mistral-large-latest")
+        hunter.disqualified = True
+        room = StubRoom([
+            StubSeat("Player A", "human"),
+            StubSeat("Player B", "human"),
+            hunter,
+        ])
+        room.round_no = 5
+        engine = make_engine(room)
+        engine.settings.max_rounds = 5
+
+        with patch("app.game.state_machine.stats.record_game"):
+            await engine._game_over()
+
+        game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
+        self.assertEqual(game_over["winner"], "humans")
+        self.assertEqual(game_over["winners"], ["Player A", "Player B"])
+        self.assertIn("costs an AI the game", game_over["message"])
+
+    async def test_a_disqualified_agent_loses_the_final_duel(self) -> None:
+        hunter = StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest")
+        hunter.disqualified = True
+        room = StubRoom([StubSeat("Player A", "human"), hunter])
+        engine = make_engine(room)
+
+        with patch("app.game.state_machine.stats.record_game"):
+            await engine._game_over()
+
+        game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
+        self.assertEqual(game_over["winner"], "humans")
+        self.assertEqual(game_over["winners"], ["Player A"])
 
 
 if __name__ == "__main__":

@@ -115,6 +115,9 @@
   const votePanel = $("vote-panel");
   const voteOptions = $("vote-options");
   const submitVote = $("submit-vote");
+  const rulesBtn = $("rules-btn");
+  const rulesDialog = $("rules-dialog");
+  const rulesClose = $("rules-close");
   const voiceGate = $("voice-gate");
   const voiceGateCopy = $("voice-gate-copy");
   const voiceUnlockBtn = $("voice-unlock-btn");
@@ -169,13 +172,26 @@
       ) return;
     }
     if (event.target?.closest?.(
-      "#sound-toggle, #play-btn, #join-btn, a",
+      "#sound-toggle, #play-btn, #join-btn, #rules-btn, #rules-dialog, a",
     )) return;
     await S.startLandingFromGesture();
   }
 
   document.addEventListener("pointerdown", startLandingAmbience, { passive: true });
   document.addEventListener("keydown", startLandingAmbience);
+
+  // Rules panel. A native dialog gives Escape and focus trapping for free, and
+  // it stays reachable during a game because the header is shared.
+  rulesBtn?.addEventListener("click", () => {
+    if (!rulesDialog) return;
+    if (typeof rulesDialog.showModal === "function") rulesDialog.showModal();
+    else rulesDialog.setAttribute("open", "");
+  });
+  rulesClose?.addEventListener("click", () => rulesDialog?.close?.());
+  // Clicking the backdrop lands on the dialog itself, never on its card.
+  rulesDialog?.addEventListener("click", (event) => {
+    if (event.target === rulesDialog) rulesDialog.close();
+  });
 
   function hideVoiceGate() {
     voiceGate.classList.add("hidden");
@@ -1822,7 +1838,14 @@
   }
 
   function resultHeadline(msg) {
-    if (msg.winner === "humans") return t("result.humans_title");
+    if (msg.winner === "humans") {
+      // Humans also win when every surviving AI was caught voting a human out,
+      // which is not the clean sweep the default title announces.
+      return msg.reason === "all_agents_exposed"
+        ? t("result.humans_title")
+        : t("result.humans_hunted_title");
+    }
+    if (msg.winner === "draw") return t("result.draw_title");
     if (msg.winner === "agents") {
       return (msg.winners || []).length === 1
         ? t("result.agent_title")
@@ -1835,7 +1858,7 @@
     const key = {
       all_agents_exposed: "result.reason_all_agents_exposed",
       human_extinction: "result.reason_human_extinction",
-      agent_reached_final_two: "result.reason_agent_reached_final_two",
+      final_duel: "result.reason_final_duel",
       round_limit: "result.reason_round_limit",
     }[reason] || "result.reason_unknown";
     return t(key);
@@ -1969,11 +1992,15 @@
     else arena3d?.gameOver?.(arenaPayload);
 
     if (firstGameOver) {
+      // A shared final duel is a victory for everyone still at the table, so
+      // play the viewer's own winning score rather than a neutral draw cue.
       const soundtrack = msg.winner === "humans"
         ? "human"
         : msg.winner === "agents"
           ? "agent"
-          : "draw";
+          : msg.winner === "draw"
+            ? ((msg.roles || {})[you] === "llm" ? "agent" : "human")
+            : "draw";
       if (!S?.playResult?.(soundtrack)) {
         S?.play((msg.winners || []).includes(you) ? "win" : "lose");
       }

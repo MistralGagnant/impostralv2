@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260721-v26"
+ASSET_VERSION = "20260721-v27"
 
 
 class WebUiTest(unittest.TestCase):
@@ -112,6 +112,32 @@ class WebUiTest(unittest.TestCase):
         self.assertIn("persist: true", app_js)
         self.assertIn('const STORAGE_KEY = "impostral.language"', i18n_js)
         self.assertIn(".language-switch button[aria-checked=\"true\"]", css)
+
+    def test_rules_panel_is_ready_but_not_yet_reachable(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        i18n_js = (ROOT / "web" / "i18n.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
+
+        # The entry point is removed until the copy is rewritten; the panel
+        # behind it must keep working so restoring the button is enough.
+        self.assertNotIn('<button id="rules-btn"', html)
+        self.assertIn('<dialog id="rules-dialog"', html)
+        self.assertIn("rulesDialog.showModal()", app_js)
+        self.assertIn(".rules-dialog::backdrop", css)
+
+        # Every outcome a player can reach must be spelled out, in both
+        # languages, since the rules panel is the only place that explains them.
+        keys = (
+            "rules.win_humans",
+            "rules.win_agents",
+            "rules.win_hunt",
+            "rules.draw_copy",
+            "rules.draw_solo",
+        )
+        for key in keys:
+            self.assertIn(f'data-i18n="{key}"', html)
+            self.assertEqual(i18n_js.count(f'"{key}":'), 2, key)
 
     def test_game_arena_progressively_enhances_the_existing_dom(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

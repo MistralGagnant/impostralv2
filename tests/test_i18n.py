@@ -18,7 +18,7 @@ class ServerI18nTest(unittest.TestCase):
         self.assertEqual(tr("en", "no_answer"), "No answer.")
         self.assertIn(
             "duel final",
-            tr("fr", "agents_final_two", winner="Player B"),
+            tr("fr", "final_duel_shared", human="Player A", agent="Player B"),
         )
 
 

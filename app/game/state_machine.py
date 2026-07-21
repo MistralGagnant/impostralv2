@@ -469,6 +469,14 @@ class GameEngine:
         ]
         results = await asyncio.gather(*tasks)
 
+        # Keep the ballot that is being counted right now. A runoff overwrites
+        # the first ballot on purpose: only the decisive one can eliminate a
+        # seat, so only it can cost an agent the game.
+        self._last_ballot = {
+            voter_id: target_id
+            for voter_id, target_id, valid in results
+            if valid and target_id
+        }
         tally: dict[str, int] = {}
         for voter_id, target_id, valid in results:
             if target_id is None:
@@ -533,6 +541,28 @@ class GameEngine:
             log.info("Applied timeout vote penalty for %s to %s", seat.id, target)
         return seat.id, target, valid
 
+    def _disqualify_human_hunters(self, eliminated: str) -> None:
+        """Sink every agent whose decisive vote sent a human home.
+
+        Agents are told to hunt each other, never the humans. Breaking that
+        rule costs the game: the agent stays at the table and keeps voting, but
+        it is out of the running. The penalty is never announced, because
+        naming the punished seats would tell the humans exactly which seats are
+        AIs. Hardcore mode, once implemented, would skip this entirely.
+        """
+        hunters = []
+        for seat_id, target in getattr(self, "_last_ballot", {}).items():
+            voter = self.room.seats.get(seat_id)
+            if target == eliminated and voter and voter.kind == "llm":
+                voter.disqualified = True
+                hunters.append(seat_id)
+        if hunters:
+            log.info(
+                "Agents disqualified for eliminating human %s: %s",
+                eliminated,
+                ", ".join(hunters),
+            )
+
     @staticmethod
     def _leaders(tally: dict[str, int]) -> list[str]:
         if not tally:
@@ -552,6 +582,8 @@ class GameEngine:
             seat.eliminated_round = self.room.round_no
             if seat.kind == "llm":
                 self.eliminated_llms.append(seat.id)
+            else:
+                self._disqualify_human_hunters(seat.id)
             role = seat.kind if self.settings.reveal_role_on_elimination else None
             model = seat.model if role == "llm" else None
             await self.room.broadcast(
@@ -621,7 +653,7 @@ class GameEngine:
         if not self.room.humans_alive():
             return "human_extinction"
         if len(self.room.alive_seats()) <= 2:
-            return "agent_reached_final_two"
+            return "final_duel"
         if include_round_limit and self.room.round_no >= self._planned_rounds():
             return "round_limit"
         return ""
@@ -633,21 +665,37 @@ class GameEngine:
         self.room.updated_at = self.room.finished_at
         surviving_humans = [s.id for s in self.room.humans_alive()]
         surviving_llms = [s.id for s in self.room.llms_alive()]
+        # An agent that voted a human out survived without winning.
+        eligible_llms = [
+            s.id for s in self.room.llms_alive() if not s.disqualified
+        ]
+        all_humans = [
+            seat.id
+            for seat in self.room.seats.values()
+            if seat.kind == "human"
+        ]
         reason = self._end_reason() or "round_limit"
-        if surviving_llms:
-            winners = surviving_llms
+        if reason == "final_duel" and surviving_humans and eligible_llms:
+            # A last human against a last agent is a degenerate ballot: the
+            # agent can never be exposed, so the duel is a shared victory. The
+            # human is credited for surviving and the agent for staying hidden.
+            # Humans win as one side here too, eliminated seats included.
+            winners = all_humans + eligible_llms
+            winner_type = "draw"
+            result = tr(
+                self.language,
+                "final_duel_shared",
+                human=surviving_humans[0],
+                agent=eligible_llms[0],
+            )
+        elif eligible_llms:
+            winners = eligible_llms
             winner_type = "agents"
             if reason == "human_extinction":
                 result = tr(
                     self.language,
                     "agents_no_humans",
                     winners=", ".join(winners),
-                )
-            elif reason == "agent_reached_final_two" and len(winners) == 1:
-                result = tr(
-                    self.language,
-                    "agents_final_two",
-                    winner=winners[0],
                 )
             else:
                 result = tr(
@@ -664,13 +712,14 @@ class GameEngine:
             # Humans are the one cooperative side from the original rules:
             # exposing every agent is a team victory, including for humans who
             # were eliminated earlier. Agents remain individual competitors.
-            winners = [
-                seat.id
-                for seat in self.room.seats.values()
-                if seat.kind == "human"
-            ]
+            winners = all_humans
             winner_type = "humans"
-            result = tr(self.language, "humans_win")
+            # Surviving agents with no claim left were all caught hunting a
+            # human, which is a different story than a clean sweep.
+            result = tr(
+                self.language,
+                "humans_win_hunted" if surviving_llms else "humans_win",
+            )
         else:
             winners = []
             winner_type = "none"
@@ -888,24 +937,15 @@ class GameEngine:
         """Build the exact immutable projection shared with every agent."""
         public_phase = phase or self.room.phase.value
         reveal_all = public_phase == Phase.GAME_OVER.value
+        # The humans are told what an eliminated seat was; the agents never
+        # are. An AI that voted a human out has already lost, and it must keep
+        # playing without knowing it. Roles reach agents only in the terminal
+        # reveal, when nothing is left to play.
         public_seats = tuple(
             PublicSeat(
                 seat_id=seat.id,
                 alive=seat.alive,
-                revealed_role=(
-                    seat.kind
-                    if reveal_all or (
-                        not seat.alive
-                        and bool(
-                            getattr(
-                                self.settings,
-                                "reveal_role_on_elimination",
-                                True,
-                            )
-                        )
-                    )
-                    else None
-                ),
+                revealed_role=seat.kind if reveal_all else None,
             )
             for seat in self.room.seats.values()
         )
@@ -919,7 +959,7 @@ class GameEngine:
             kind = str(event.get("type") or "system")
             revealed_role = (
                 str(event.get("role"))
-                if kind == "elimination" and event.get("role")
+                if reveal_all and kind == "elimination" and event.get("role")
                 else None
             )
             public_events.append(PublicGameEvent(

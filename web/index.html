@@ -56,7 +56,7 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=20260721-v26" />
+  <link rel="stylesheet" href="/static/style.css?v=20260721-v27" />
 </head>
 <body data-screen="join">
   <div class="app-shell">
@@ -87,6 +87,11 @@
           </span>
           <span id="sound-toggle-label" data-i18n="nav.sound">Music + FX</span>
         </button>
+        <!-- Bouton « Règles » retiré le temps d'en réécrire le contenu. Le
+             dialogue #rules-dialog, ses styles, sa traduction et son câblage
+             dans app.js restent en place : rouvrir l'onglet ne demande que de
+             rétablir ici un bouton id="rules-btn" class="nav-btn" portant
+             data-i18n="nav.rules". -->
         <a href="/stats.html" data-i18n="nav.stats">Stats</a>
       </nav>
     </header>
@@ -296,10 +301,57 @@
     </main>
   </div>
 
-  <script src="/static/i18n.js?v=20260721-v26"></script>
-  <script src="/static/audio.js?v=20260721-v26"></script>
-  <script src="/static/sound.js?v=20260721-v26"></script>
-  <script src="/static/arena3d-loader.js?v=20260721-v26"></script>
-  <script src="/static/app.js?v=20260721-v26"></script>
+  <!-- Règles du jeu. Chaque ligne est traduite séparément par data-i18n, donc
+       pas de balise à l'intérieur des textes. -->
+  <dialog id="rules-dialog" class="rules-dialog" aria-labelledby="rules-title">
+    <article class="rules-card">
+      <header class="rules-head">
+        <h2 id="rules-title" data-i18n="rules.title">Rules</h2>
+        <button
+          id="rules-close"
+          class="rules-close"
+          type="button"
+          aria-label="Close the rules"
+          data-i18n-aria-label="rules.close"
+        >×</button>
+      </header>
+
+      <p class="rules-lede" data-i18n="rules.lede">
+        Humans and independent AIs share one table. Every voice is synthetic, so
+        nobody can be recognised by sound.
+      </p>
+
+      <section>
+        <h3 data-i18n="rules.round_title">Each round</h3>
+        <ol>
+          <li data-i18n="rules.round_question">Everyone answers the same personal question, privately and at the same time. Answers are then revealed one by one in a random order.</li>
+          <li data-i18n="rules.round_vote">Everyone still in the game votes to eliminate one seat. A tie triggers a runoff between the tied seats.</li>
+          <li data-i18n="rules.round_out">The seat with the most votes is eliminated, whatever it turns out to be.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h3 data-i18n="rules.win_title">Winning</h3>
+        <ul>
+          <li data-i18n="rules.win_humans">Humans win together as soon as every AI has been eliminated, including the humans voted out earlier.</li>
+          <li data-i18n="rules.win_agents">AIs play for themselves. Every AI still hidden at the end of the game wins on its own; there is no AI team.</li>
+          <li data-i18n="rules.win_hunt">An AI that votes a human out loses the game on the spot. It stays at the table and keeps voting, but it can no longer win. Only the AIs that voted for that human are punished — and they never find out, because AIs are never told what an eliminated player was.</li>
+          <li data-i18n="rules.win_hunted_all">So if every AI still hidden has voted a human out, the humans win.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 data-i18n="rules.draw_title">Draw: the final duel</h3>
+        <p data-i18n="rules.draw_copy">When only one human and one AI are left, the vote decides nothing: each can only accuse the other. Both sides win that duel — the human for surviving, the AI for never being exposed.</p>
+        <p data-i18n="rules.draw_solo">Alone against the AIs, this shared victory is the only one you can reach, since the last AI can never be voted out.</p>
+      </section>
+    </article>
+  </dialog>
+
+  <script src="/static/i18n.js?v=20260721-v27"></script>
+  <script src="/static/audio.js?v=20260721-v27"></script>
+  <script src="/static/sound.js?v=20260721-v27"></script>
+  <script src="/static/arena3d-loader.js?v=20260721-v27"></script>
+  <script src="/static/app.js?v=20260721-v27"></script>
 </body>
 </html>
