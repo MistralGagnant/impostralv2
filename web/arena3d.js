@@ -138,6 +138,7 @@ export function createArena({ canvas, root, labels }) {
       emissiveIntensity: options.emissiveIntensity ?? 0,
       transparent: options.transparent ?? false,
       opacity: options.opacity ?? 1,
+      side: options.side ?? THREE.FrontSide,
     }));
   }
 
@@ -231,11 +232,14 @@ export function createArena({ canvas, root, labels }) {
     emissive: 0xff8a1e,
     emissiveIntensity: 0.4,
   });
+  // `DoubleSide` : la coupe est un cylindre ouvert, sans quoi la paroi intérieure
+  // (faces arrière) est cullée et on voit à travers depuis les caméras hautes.
   const coreMaterial = standard(COLORS.orange, {
     emissive: COLORS.orange,
     emissiveIntensity: 2.1,
     metalness: 0.35,
     roughness: 0.32,
+    side: THREE.DoubleSide,
   });
 
   const trophyBase = makeMesh(
@@ -264,6 +268,14 @@ export function createArena({ canvas, root, labels }) {
     coreMaterial,
   );
   trophyCup.position.y = 2.02;
+  // Fond de la coupe : le cylindre est ouvert aux deux bouts, ce disque ferme le
+  // bas (rayon local ~0,266 à cette hauteur, débordement volontaire dans la paroi).
+  const trophyCupFloor = makeMesh(
+    geometry(new THREE.CircleGeometry(0.28, 28)),
+    coreMaterial,
+  );
+  trophyCupFloor.rotation.x = -Math.PI / 2;
+  trophyCupFloor.position.y = 1.7;
   const trophyRim = makeMesh(
     geometry(new THREE.TorusGeometry(0.62, 0.06, 10, 44)),
     trophyGold,
@@ -283,6 +295,7 @@ export function createArena({ canvas, root, labels }) {
     trophyStem,
     trophyKnot,
     trophyCup,
+    trophyCupFloor,
     trophyRim,
     handleLeft,
     handleRight,
