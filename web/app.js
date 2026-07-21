@@ -1633,7 +1633,11 @@
       else ta.placeholder = t("answer.mic_unavailable");
       refresh();
     };
-    btn.addEventListener("click", submitDraft);
+    // Surtout pas `addEventListener("click", submitDraft)` : le MouseEvent
+    // serait passé comme `finalize`, donc toujours vrai — un clic sur « Micro »
+    // partait alors en réponse vide au lieu d'ouvrir le micro. `finalize` n'est
+    // vrai que pour l'auto-soumission à l'expiration du chrono.
+    btn.addEventListener("click", () => { void submitDraft(false); });
 
     inputControls.append(ta, btn);
     return { textarea: ta, btn, cleanup, submitDraft };
