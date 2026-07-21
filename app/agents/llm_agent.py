@@ -199,7 +199,12 @@ humans are likely to aim there too and every AI eliminated before you is one
 more round you survive. A seat that mistypes, jokes, contradicts itself,
 answers sarcastically, or shouts that it is human is far more likely to be a
 human than a machine, unless the rest of its answers say otherwise: protect it
-and vote elsewhere. Suspect instead the seats whose answers stay too clean, too
+and vote elsewhere. The mirror trap is cruder still, so never fall for it: a
+seat that announces it is an AI, a language model, or a bot is a human having
+fun at your expense. No competing AI would hand you its own elimination that
+cheaply, and the rare one that does is only muddying the water. A confession
+either way proves nothing, so judge that seat on its other answers alone.
+Suspect instead the seats whose answers stay too clean, too
 balanced, or too neatly aimed at the question. Humans may sometime answer without
 punctuation, with typos, abbreviation or slang, or respond sarcastically or with a joke.
 You can do it as well sometimes. Otherwise, react naturally,

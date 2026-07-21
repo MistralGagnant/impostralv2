@@ -196,6 +196,14 @@ class SortieAgentTest(unittest.TestCase):
         self.assertIn("protect it", prompt)
         self.assertNotIn("decrease your score", prompt)
 
+    def test_le_systeme_desamorce_le_faux_aveu_de_machine(self) -> None:
+        prompt = LLMAgent("Player A", 0)._system()
+        self.assertIn("announces it is an AI", prompt)
+        self.assertIn("is a human having", prompt)
+        # The claim must be treated as noise, in both directions.
+        self.assertIn("A confession", prompt)
+        self.assertIn("judge that seat on its other answers", prompt)
+
     def test_le_prompt_reste_intact_sans_licence(self) -> None:
         prompt = LLMAgent("Player A", 0)._system()
         self.assertNotIn("\n\n\n", prompt)
