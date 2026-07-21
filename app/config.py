@@ -71,9 +71,11 @@ class Settings(BaseSettings):
     question_seconds: int = 25
     answer_processing_seconds: int = 12
     answer_turn_seconds: int = 38
-    # Agents begin model work when the human capture window closes. This gives
-    # voice transcription and chat generation the same hidden processing time.
-    agent_waits_for_input_window: bool = True
+    # Agents start their model work at once, in parallel with the human capture
+    # window. Timing tells are already hidden by the lock and the shuffled
+    # reveal; delaying them would only push every round to the ceiling above and
+    # squeeze chat + TTS into the leftover seconds.
+    agent_waits_for_input_window: bool = False
     vote_seconds: int = 20
     # Accept a deadline auto-submit that was already in flight over the socket.
     input_grace_seconds: float = 1.25
@@ -85,9 +87,10 @@ class Settings(BaseSettings):
     playback_timeout_seconds: int = 10
     # Uniform client playback speed preserves voice anonymity across seats.
     tts_playback_rate: float = 1.1
-    # A round only plays audio when every seat has a clip, so one transient TTS
-    # failure would otherwise drop the whole round to text. Retry a little.
-    tts_retry_attempts: int = 1
+    # A failed clip only costs its own seat its voice, but a text-only seat in a
+    # voiced round still stands out. Agents no longer wait for the input window,
+    # so there is budget for one more attempt.
+    tts_retry_attempts: int = 2
 
     # --- TTS voice pool used only as a mock fallback ---------------------
     # Outside mock mode, preset Voxtral voices are loaded dynamically.

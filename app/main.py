@@ -70,6 +70,18 @@ async def security_headers(request: Request, call_next):
     response = await call_next(request)
     for header, value in _SECURITY_HEADERS.items():
         response.headers.setdefault(header, value)
+    # The HTML documents are what carry the `?v=` asset version, so they must be
+    # revalidated on every load. Served without Cache-Control they fell under the
+    # browser's heuristic freshness, which pinned players to a cached page still
+    # asking for the previous bundle — a deploy could not reach them at all.
+    content_type = response.headers.get("content-type", "")
+    if content_type.startswith("text/html"):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    elif request.url.query and request.url.path.startswith(("/static/", "/assets/")):
+        # Versioned assets are immutable: a change ships under a new `?v=`.
+        response.headers.setdefault(
+            "Cache-Control", "public, max-age=31536000, immutable"
+        )
     return response
 
 

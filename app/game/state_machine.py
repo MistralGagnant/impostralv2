@@ -199,7 +199,14 @@ class GameEngine:
             for seat in order
         }
         try:
-            await asyncio.sleep(turn_duration)
+            # The lock is elastic: it lifts as soon as every seat is prepared,
+            # and `turn_duration` is only the ceiling for stragglers. Waiting it
+            # out unconditionally made a round sleep long after the last human
+            # had submitted and every agent had answered.
+            if answer_tasks:
+                await asyncio.wait(
+                    answer_tasks.values(), timeout=turn_duration
+                )
             for seat in order:
                 task = answer_tasks[seat.id]
                 if not task.done():
@@ -208,11 +215,10 @@ class GameEngine:
 
             # SCRAMBLE + REVEAL: the locked responses play one at a time in a
             # fresh random order. No player sees another answer while composing.
+            # Audio is per seat: one failed clip silences that seat only, never
+            # the round. Gating the whole round on every seat succeeding turned
+            # any single TTS hiccup into a fully mute round.
             random.shuffle(order)
-            round_audio_ready = bool(order) and all(
-                isinstance(slots[seat.id].get("audio_url"), str)
-                for seat in order
-            )
             for position, seat in enumerate(order, start=1):
                 await self.room.broadcast(
                     self.room.set_answer_turn(
@@ -232,13 +238,7 @@ class GameEngine:
                         if ready
                         else tr(self.language, "no_answer")
                     ),
-                    (
-                        prepared_audio
-                        if ready
-                        and round_audio_ready
-                        and isinstance(prepared_audio, str)
-                        else None
-                    ),
+                    prepared_audio if isinstance(prepared_audio, str) else None,
                     context="answer",
                 )
         finally:
@@ -326,10 +326,11 @@ class GameEngine:
         normalized = normalize_public_answer(text)
         slot["text"] = normalized or tr(self.language, "no_answer")
         slot["text_ready"] = True
-        if not normalized:
-            return
+        # A missing answer is spoken too. The fallback line says nothing the
+        # revealed text does not already show, and a mute seat in an otherwise
+        # voiced round would itself be a tell.
         slot["audio_url"] = await self._synthesize_with_retry(
-            normalized, seat.voice, seat.id
+            str(slot["text"]), seat.voice, seat.id
         )
 
     async def _synthesize_with_retry(
@@ -337,9 +338,9 @@ class GameEngine:
     ) -> Optional[str]:
         """Synthesize speech, retrying transient failures within the lock window.
 
-        The reveal only plays audio when every seat has a clip, so a single
-        transient TTS failure would silence the whole round. A bounded retry
-        keeps that from happening without exposing per-seat timing.
+        A failed clip now costs its own seat its voice and nothing more, but a
+        seat revealed in text while the others speak still stands out. A bounded
+        retry keeps that rare, without exposing per-seat timing.
         """
         attempts = 1 + max(0, int(getattr(self.settings, "tts_retry_attempts", 1)))
         for attempt in range(attempts):

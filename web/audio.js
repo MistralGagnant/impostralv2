@@ -317,7 +317,15 @@
     };
     playback.finish = finish;
     audio.onended = audio.onerror = () => finish(true);
-    audio.onabort = () => blockPlayback(playback, "aborted");
+    audio.onabort = () => {
+      // Assigning `src` above runs the media load algorithm, which fires
+      // `abort` at the shared element for the resource being replaced. That
+      // abort belongs to the previous clip, not this one, so it must never
+      // raise the voice gate: the gate is for autoplay refusals only.
+      // An abort once playback has started does mean this clip will not
+      // finish, so move on to the next seat instead of stalling the reveal.
+      if (playback.voiceStarted) finish(true);
+    };
     playback.failSafe = setTimeout(() => {
       if (playback.completed) return;
       emit("impostral:voice-unavailable");

@@ -44,10 +44,14 @@ async def transcribe(
     fallback_text: str = "",
     language: str | None = None,
 ) -> str:
+    # A text answer needs no transcription. Building the SDK client first cost
+    # every text-only seat the client construction, which blocks the loop.
+    if not audio_bytes:
+        return fallback_text.strip()
+
     settings = get_settings()
     client = get_client()
-
-    if client is None or not audio_bytes:
+    if client is None:
         return fallback_text.strip()
 
     content_type, file_name = _upload_metadata(mime_type)

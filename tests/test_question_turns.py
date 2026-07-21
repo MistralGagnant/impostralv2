@@ -197,6 +197,33 @@ class QuestionTurnTest(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(len(request["request_id"]), 8)
         self.assertEqual(agent.transcripts, [""])
 
+    async def test_the_lock_lifts_once_every_seat_has_answered(self) -> None:
+        """`answer_turn_seconds` is a ceiling, not a mandatory wait."""
+        room = StubRoom([
+            StubSeat("Player A", "human"),
+            StubSeat("Player B", "llm", StubAgent("agent answer")),
+        ])
+        engine = make_engine(room, input_seconds=0.05, turn_seconds=1.5)
+        started = time.perf_counter()
+
+        with (
+            patch("app.game.state_machine.questions.pick_question", return_value="Prompt?"),
+            patch(
+                "app.game.state_machine.tts.synthesize",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            await engine._question_phase()
+
+        self.assertLess(time.perf_counter() - started, 0.5)
+        texts = {
+            message["seat"]: message["text"]
+            for _, message in room.messages
+            if message["type"] == "utterance"
+        }
+        self.assertEqual(texts["Player A"], "answer from Player A")
+        self.assertEqual(texts["Player B"], "agent answer")
+
     async def test_a_slow_agent_falls_back_without_extending_its_turn(self) -> None:
         room = StubRoom([
             StubSeat("Player A", "llm", StubAgent("too late", delay=0.2)),
@@ -287,16 +314,17 @@ class QuestionTurnTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(utterance["text"], "private partial answer")
         self.assertIsNone(utterance["audio_url"])
 
-    async def test_one_voice_failure_switches_the_whole_round_to_text(self) -> None:
+    async def test_one_voice_failure_never_silences_the_other_seats(self) -> None:
+        """A failed clip costs its own seat its voice, never the whole round."""
         room = StubRoom([
-            StubSeat("Player A", "llm", StubAgent("fast answer")),
-            StubSeat("Player B", "llm", StubAgent("slow voice answer")),
+            StubSeat("Player A", "llm", StubAgent("voiced answer")),
+            StubSeat("Player B", "llm", StubAgent("mute answer")),
         ])
-        engine = make_engine(room, input_seconds=0.01, turn_seconds=0.05)
+        engine = make_engine(room, input_seconds=0.01, turn_seconds=0.5)
 
         async def mixed_speech(text: str, *, voice: str):
-            if text == "slow voice answer":
-                await asyncio.sleep(0.2)
+            if text == "mute answer":
+                return None
             return f"/audio/{text.replace(' ', '-')}"
 
         with (
@@ -309,16 +337,39 @@ class QuestionTurnTest(unittest.IsolatedAsyncioTestCase):
         ):
             await engine._question_phase()
 
-        utterances = [
-            message
+        audio = {
+            message["seat"]: message["audio_url"]
             for _, message in room.messages
             if message["type"] == "utterance"
-        ]
-        self.assertEqual(
-            [message["text"] for message in utterances],
-            ["fast answer", "slow voice answer"],
+        }
+        self.assertEqual(audio["Player A"], "/audio/voiced-answer")
+        self.assertIsNone(audio["Player B"])
+
+    async def test_a_seat_without_an_answer_still_speaks(self) -> None:
+        """The fallback line is voiced too, so no seat goes mute for free."""
+        room = StubRoom([StubSeat("Player A", "llm", StubAgent(""))])
+        engine = make_engine(room, input_seconds=0.01, turn_seconds=0.5)
+        spoken: list[str] = []
+
+        async def record_speech(text: str, *, voice: str):
+            spoken.append(text)
+            return "/audio/fallback"
+
+        with (
+            patch("app.game.state_machine.questions.pick_question", return_value="Prompt?"),
+            patch(
+                "app.game.state_machine.tts.synthesize",
+                new=AsyncMock(side_effect=record_speech),
+            ),
+        ):
+            await engine._question_phase()
+
+        utterance = next(
+            message for _, message in room.messages if message["type"] == "utterance"
         )
-        self.assertTrue(all(message["audio_url"] is None for message in utterances))
+        self.assertEqual(utterance["text"], "No answer.")
+        self.assertEqual(spoken, ["No answer."])
+        self.assertEqual(utterance["audio_url"], "/audio/fallback")
 
     async def test_text_only_reveal_keeps_a_readable_fixed_pace(self) -> None:
         seat = StubSeat("Player A", "llm", StubAgent("answer"))

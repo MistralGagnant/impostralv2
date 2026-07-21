@@ -18,7 +18,10 @@
   --line: rgba(255, 130, 5, 0.28);
   --line-soft: rgba(244, 239, 230, 0.1);
   --mono: "SFMono-Regular", "Roboto Mono", "Cascadia Code", Menlo, Consolas, monospace;
-  --display: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  /* Replis condensés (Linux) avant le sans-serif générique : sans eux, la mise
+     en page calibrée pour Impact déborde avec une fonte large type DejaVu Sans. */
+  --display: Impact, Haettenschweiler, "Arial Narrow Bold", "Liberation Sans Narrow",
+    "DejaVu Sans Condensed", "Roboto Condensed", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -1529,7 +1532,9 @@ body[data-phase="game_over"] .question-frame { display: none; }
 }
 .result-header {
   display: grid;
-  grid-template-columns: minmax(160px, 0.36fr) minmax(0, 1fr);
+  /* min-content : « DÉFAITE » / « VICTOIRE » sont insécables — la colonne doit
+     grandir pour les contenir, sinon le verdict déborde sous le titre. */
+  grid-template-columns: minmax(min-content, 0.36fr) minmax(0, 1fr);
   gap: clamp(22px, 4vw, 54px);
   align-items: center;
   padding-bottom: 26px;
@@ -1546,7 +1551,7 @@ body[data-phase="game_over"] .question-frame { display: none; }
 #result-outcome {
   color: var(--result-accent);
   font-family: var(--display);
-  font-size: clamp(2.8rem, 7vw, 5.6rem);
+  font-size: clamp(2.6rem, 6vw, 5rem);
   font-weight: 500;
   letter-spacing: 0.025em;
   line-height: 0.8;
@@ -1691,10 +1696,14 @@ body[data-phase="game_over"] .question-frame { display: none; }
   outline-offset: 3px;
 }
 
+/* Sous 860 px, deux colonnes serreraient trop le titre : on empile. */
+@media (max-width: 860px) {
+  .result-header { grid-template-columns: 1fr; gap: 18px; }
+}
+
 @media (max-width: 680px) {
   .result-overlay { align-items: start; padding: 12px; }
   .result-panel { padding: 20px 16px; box-shadow: 7px 7px 0 var(--result-soft); }
-  .result-header { grid-template-columns: 1fr; gap: 18px; }
   #result-outcome { font-size: clamp(3rem, 18vw, 4.8rem); }
   .result-roster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .result-roster-head span { display: none; }
