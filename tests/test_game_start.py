@@ -52,7 +52,13 @@ class GameStartTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(room.started)
         self.assertEqual(room.status, "running")
         self.assertEqual(room.num_humans, 2)
-        self.assertEqual(set(room.seats), {"Player A", "Player B", "Player D"})
+        # The unfilled human seat is handed to an AI, so the table keeps its
+        # planned size instead of shrinking.
+        self.assertEqual(
+            set(room.seats), {"Player A", "Player B", "Player C", "Player D"}
+        )
+        self.assertEqual(room.seats["Player C"].kind, "llm")
+        self.assertEqual(room.num_llms, 2)
 
     async def test_timeout_extends_below_floor_then_starts_solo(self) -> None:
         room = Room(id="lonely", num_humans=3, num_llms=1, visibility="public")
@@ -92,7 +98,14 @@ class GameStartTest(unittest.IsolatedAsyncioTestCase):
         # Exactly one extension happened before the solo fallback start.
         self.assertEqual(room.start_extensions, 1)
         self.assertEqual(room.num_humans, 1)
-        self.assertEqual(set(room.seats), {"Player A", "Player D"})
+        # Both empty human seats become AIs, so the lone player still faces a
+        # full table rather than a shrunken one.
+        self.assertEqual(
+            set(room.seats), {"Player A", "Player B", "Player C", "Player D"}
+        )
+        self.assertEqual(room.num_llms, 3)
+        self.assertEqual(room.seats["Player B"].kind, "llm")
+        self.assertEqual(room.seats["Player C"].kind, "llm")
 
     async def test_private_lobby_never_starts_on_a_timer(self) -> None:
         room = Room(id="friends", num_humans=2, num_llms=1, visibility="private")
@@ -141,7 +154,60 @@ class GameStartTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(room.started)
         self.assertEqual(room.num_humans, 2)
-        self.assertEqual(set(room.seats), {"Player A", "Player B", "Player D"})
+        # A private lobby started short of its humans fills the gap with AIs too.
+        self.assertEqual(
+            set(room.seats), {"Player A", "Player B", "Player C", "Player D"}
+        )
+        self.assertEqual(room.seats["Player C"].kind, "llm")
+        self.assertEqual(room.num_llms, 2)
+
+    def test_absent_humans_are_converted_into_distinct_ai_seats(self) -> None:
+        room = Room(id="fill", num_humans=3, num_llms=2, visibility="public")
+        room.seats = {
+            "Player A": Seat(
+                id="Player A", kind="human", voice="hv1",
+                connected=True, claimed=True,
+            ),
+            # Absent but still carrying a stale reservation: converting the
+            # seat must wipe it so no late browser reclaims an AI seat.
+            "Player B": Seat(
+                id="Player B", kind="human", voice="hv2",
+                claimed=True, player_id="p", reservation_token="tok",
+            ),
+            "Player C": Seat(id="Player C", kind="human", voice="hv3"),
+            "Player D": Seat(id="Player D", kind="llm", voice="av1"),
+            "Player E": Seat(id="Player E", kind="llm", voice="av2"),
+        }
+        # Seed the two existing agents so persona non-repetition can be checked.
+        with patch("app.audio.voices.get_pool", return_value=["v"] * 12):
+            for sid in ("Player D", "Player E"):
+                seat = room.seats[sid]
+                idx = 0 if sid == "Player D" else 1
+                room._assign_agent(
+                    seat, persona_idx=idx, model="m",
+                    answer_variant=idx, provider_id="mistral",
+                )
+
+        room.fill_absent_humans_with_agents()
+
+        # The table keeps its five seats; the two empty humans became AIs.
+        self.assertEqual(len(room.seats), 5)
+        self.assertEqual(room.num_humans, 1)
+        self.assertEqual(room.num_llms, 4)
+        for sid in ("Player B", "Player C"):
+            self.assertEqual(room.seats[sid].kind, "llm")
+            self.assertIsNotNone(room.seats[sid].agent)
+        # A converted seat keeps its own voice and loses every occupant trace.
+        self.assertEqual(room.seats["Player B"].voice, "hv2")
+        self.assertFalse(room.seats["Player B"].claimed)
+        self.assertEqual(room.seats["Player B"].player_id, "")
+        self.assertEqual(room.seats["Player B"].reservation_token, "")
+        # Four AIs, four distinct personas: the no-repeat draw continues.
+        personas = [
+            room.seats[sid].agent.persona_idx
+            for sid in ("Player B", "Player C", "Player D", "Player E")
+        ]
+        self.assertEqual(len(set(personas)), 4)
 
     def test_private_room_state_contains_only_aggregate_lobby_information(self) -> None:
         room = Room(id="friends", num_humans=2, num_llms=1, visibility="private")

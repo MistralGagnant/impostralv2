@@ -397,7 +397,7 @@ async def _launch_game(room, *, allow_partial: bool = False) -> None:
         return
     if not allow_partial and len(connected_humans) < room.num_humans:
         return
-    room.keep_connected_humans()
+    room.fill_absent_humans_with_agents()
 
     room.started = True
     room.status = "running"

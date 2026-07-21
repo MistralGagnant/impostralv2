@@ -50,7 +50,14 @@ and the game starts when all human seats are connected or after a configurable
 present (a lone human can only reach the shared final-duel victory). Below that
 floor the wait
 extends up to `IMPOSTRAL_MAX_PUBLIC_START_EXTENSIONS` times, then starts anyway so
-a lone player is never stranded. Public queues are partitioned
+a lone player is never stranded. Any game that starts short of its planned
+humans keeps its planned table size: `Room.fill_absent_humans_with_agents`
+hands every unconnected human seat to an AI instead of dropping it, so a 3+3
+room joined by one player starts as 1 human against 5 AIs. Converted seats keep
+their own voice, lose every occupant trace so no late browser reclaims them, and
+continue the room's no-repeat persona draw, cycling the catalogue only once all
+seven archetypes are seated. This applies to private lobbies started short of
+their humans too. Public queues are partitioned
 by room language. The landing menu offers an explicit EN/FR selector, remembers
 the preferred menu language locally, and still defaults from the primary
 browser locale. A stable anonymous
@@ -132,13 +139,16 @@ The default room has three humans and three agents, using Large, Medium, and
 Small respectively. Agents also use different personas, temperatures, and
 persona-specific human few-shot examples from `PERSONAS` in
 `app/agents/llm_agent.py`. Personas are drawn without repetition inside a room.
-Every agent prompt also opens with the room's real starting composition, since
-`num_humans` is configurable and a private lobby or a partial public start
-strays far from the 3+3 default. `AgentMatchContext` carries it as
-`starting_humans`/`starting_agents`, issued once by `_start_agents` and counted
-from the seats rather than the survivors: a live count would tell an agent what
-each eliminated seat was, which `_public_view` withholds until the terminal
-reveal.
+A **hardcore** agent prompt also opens with the room's real starting
+composition, since `num_humans` is configurable and a private lobby or a
+partial public start strays far from the 3+3 default. `AgentMatchContext`
+carries it as `starting_humans`/`starting_agents`, issued once by
+`_start_agents` and counted from the seats rather than the survivors: a live
+count would tell an agent what each eliminated seat was, which `_public_view`
+withholds until the terminal reveal. Standard agents never receive it: knowing
+how many humans remain is a hunting tool, and a standard agent that eliminates
+a human loses, so the count could only push it toward the one move that costs
+it the game.
 A persona may carry a `licence` that relaxes the shared answer rules for itself;
 only **The Troll** does, so it may joke, answer off topic, claim to be the human
 of the table, and mistype on purpose.

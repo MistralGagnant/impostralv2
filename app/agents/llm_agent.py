@@ -554,10 +554,14 @@ class LLMAgent:
         return _SYSTEM_TEMPLATE.format(
             objective=_OBJECTIVES[ruleset],
             persona_roster=_persona_roster(),
+            # Hardcore only: knowing how many humans sat down tells an agent how
+            # many targets remain, which is a hunting tool. A standard agent
+            # never hunts humans, so the count would only help it do the one
+            # thing that costs it the game.
             composition=_composition_line(
                 getattr(context, "starting_humans", 0) if context else 0,
                 getattr(context, "starting_agents", 0) if context else 0,
-            ),
+            ) if self.hardcore else "",
             human_read_rule=_HUMAN_READ_RULES[ruleset],
             seat=self.seat_id,
             persona=self.persona["nom"],

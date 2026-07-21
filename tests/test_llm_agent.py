@@ -242,8 +242,8 @@ class SortieAgentTest(unittest.TestCase):
 
         from app.agents.contracts import AgentMatchContext
 
-        def brief(humans: int, agents: int) -> str:
-            agent = LLMAgent("Player A", 0, hardcore=True)
+        def brief(humans: int, agents: int, *, hardcore: bool = True) -> str:
+            agent = LLMAgent("Player A", 0, hardcore=hardcore)
             asyncio.run(agent.start_match(AgentMatchContext(
                 match_id="m",
                 seat_id="Player A",
@@ -260,6 +260,9 @@ class SortieAgentTest(unittest.TestCase):
         # Jamais rafraîchi : le suivre en direct dirait ce qu'était chaque
         # siège éliminé, ce que la vue publique cache jusqu'au verdict.
         self.assertIn("never updated", brief(3, 3))
+        # Réservé au hardcore : compter les humains restants est un outil de
+        # chasse, et une IA standard n'a jamais à faire éliminer d'humain.
+        self.assertNotIn("sat down with", brief(3, 3, hardcore=False))
         # Sans contexte de partie, aucune composition n'est inventée.
         self.assertNotIn("sat down with", LLMAgent("Player A", 0)._system("en"))
         # Le bulletin s'appuie sur ce chiffre au lieu d'en affirmer un faux.

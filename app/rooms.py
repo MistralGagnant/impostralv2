@@ -204,8 +204,6 @@ class Room:
             kind = kinds[i]
             seat = Seat(id=sid, kind=kind, voice=voice)
             if kind == "llm":
-                model = model_order[agent_index]
-                persona_idx = persona_order[agent_index]
                 provider_id = (
                     self.agent_providers[
                         agent_index % len(self.agent_providers)
@@ -213,29 +211,53 @@ class Room:
                     if self.agent_providers
                     else "mistral"
                 )
-                seat.agent = create_agent(
-                    provider_id,
-                    AgentBuildSpec(
-                        seat_id=sid,
-                        persona_idx=persona_idx,
-                        model=model if provider_id == "mistral" else None,
-                        language=self.language,
-                        seed=secrets.randbits(128),
-                        answer_variant=agent_index,
-                        hardcore=self.hardcore,
-                    ),
+                self._assign_agent(
+                    seat,
+                    persona_idx=persona_order[agent_index],
+                    model=model_order[agent_index],
+                    answer_variant=agent_index,
+                    provider_id=provider_id,
                 )
-                if self.language not in seat.agent.identity.supported_languages:
-                    raise ValueError(
-                        f"{seat.agent.identity.agent_id} does not support "
-                        f"{self.language}"
-                    )
-                seat.model = seat.agent.identity.model or None
-                seat.agent_id = seat.agent.identity.agent_id
-                seat.agent_provider = seat.agent.identity.provider_id
-                seat.agent_version = seat.agent.identity.version
                 agent_index += 1
             self.seats[sid] = seat
+
+    def _assign_agent(
+        self,
+        seat: Seat,
+        *,
+        persona_idx: int,
+        model: Optional[str],
+        answer_variant: int,
+        provider_id: str,
+    ) -> None:
+        """Turn one seat into an AI seat carrying its own agent and identity.
+
+        Shared by initial `setup_seats` and by `fill_absent_humans_with_agents`,
+        so a seat converted just before start is built exactly like one created
+        at room setup.
+        """
+        seat.kind = "llm"
+        seat.agent = create_agent(
+            provider_id,
+            AgentBuildSpec(
+                seat_id=seat.id,
+                persona_idx=persona_idx,
+                model=model if provider_id == "mistral" else None,
+                language=self.language,
+                seed=secrets.randbits(128),
+                answer_variant=answer_variant,
+                hardcore=self.hardcore,
+            ),
+        )
+        if self.language not in seat.agent.identity.supported_languages:
+            raise ValueError(
+                f"{seat.agent.identity.agent_id} does not support "
+                f"{self.language}"
+            )
+        seat.model = seat.agent.identity.model or None
+        seat.agent_id = seat.agent.identity.agent_id
+        seat.agent_provider = seat.agent.identity.provider_id
+        seat.agent_version = seat.agent.identity.version
 
     def free_human_seat(self, now: Optional[float] = None) -> Optional[Seat]:
         now = now or time.time()
@@ -515,15 +537,65 @@ class Room:
             and seat.connected
         )
 
-    def keep_connected_humans(self) -> None:
-        """Drop unfilled human seats immediately before a partial start."""
-        absent_ids = {
-            seat.id for seat in self.seats.values()
+    def fill_absent_humans_with_agents(self) -> None:
+        """Hand every unfilled human seat to an AI just before a partial start.
+
+        A lobby is sized for a fixed table. When fewer humans connect than
+        planned, the empty human seats become AI seats instead of being
+        dropped, so the room keeps its planned total and the humans still face
+        a full table. Personas continue the room's no-repeat draw, cycling the
+        catalogue only once every archetype is already seated. Applies to both
+        public matchmaking and private lobbies started short of their humans.
+        """
+        from .agents.llm_agent import PERSONA_COUNT
+
+        absent = [
+            seat for seat in self.seats.values()
             if seat.kind == "human" and not seat.connected
+        ]
+        # Wipe any stale reservation or reconnect secret before the kind flips,
+        # so a late browser cannot try to reclaim what is now an AI seat.
+        for seat in absent:
+            seat.clear_occupant()
+
+        settings = get_settings()
+        existing_agents = [s for s in self.seats.values() if s.kind == "llm"]
+        used = {
+            getattr(s.agent, "persona_idx", None) for s in existing_agents
         }
-        for seat_id in absent_ids:
-            self.seats.pop(seat_id, None)
+        used.discard(None)
+        # Continue the no-repeat persona draw from the archetypes not yet seated.
+        persona_queue = [p for p in range(PERSONA_COUNT) if p not in used]
+        random.shuffle(persona_queue)
+
+        def next_persona() -> int:
+            if not persona_queue:
+                block = list(range(PERSONA_COUNT))
+                random.shuffle(block)
+                persona_queue.extend(block)
+            return persona_queue.pop()
+
+        models = list(settings.agent_models)
+        agent_index = len(existing_agents)
+        for seat in absent:
+            provider_id = (
+                self.agent_providers[agent_index % len(self.agent_providers)]
+                if self.agent_providers
+                else "mistral"
+            )
+            self._assign_agent(
+                seat,
+                persona_idx=next_persona(),
+                model=models[agent_index % len(models)] if models else None,
+                answer_variant=agent_index,
+                provider_id=provider_id,
+            )
+            agent_index += 1
+
         self.num_humans = len(self.connected_humans())
+        self.num_llms = sum(
+            1 for seat in self.seats.values() if seat.kind == "llm"
+        )
 
     def lobby_wait_remaining(self) -> Optional[int]:
         if not self.start_deadline or self.started:
