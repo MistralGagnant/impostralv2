@@ -198,7 +198,9 @@ main > section { flex: 1 1 auto; min-width: 0; min-height: 0; }
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  /* `min-content` et non 0 : sur un écran bas, une ligne figée à 1fr laissait la
+     colonne déborder *sous* le crédit hackathon au lieu de faire défiler. */
+  grid-template-rows: minmax(min-content, 1fr) auto;
   gap: clamp(18px, 3vh, 32px);
   padding: clamp(18px, 3vh, 34px) clamp(20px, 4vw, 64px) 18px;
   overflow: auto;
@@ -651,10 +653,21 @@ body[data-screen="join"] .join-screen {
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  /* `min-content` et non 0 : sur un écran bas, une ligne figée à 1fr laissait la
+     colonne déborder *sous* le crédit hackathon au lieu de faire défiler. */
+  grid-template-rows: minmax(min-content, 1fr) auto;
   gap: 16px;
   padding: clamp(28px, 5vh, 64px) clamp(20px, 5vw, 80px) 20px;
   overflow: auto;
+}
+/* Le motif décoratif est collé au bord gauche (largeur `clamp(64px, 9vw, 140px)`)
+   et ne bouge pas avec le padding : on réserve sa largeur pour que le kicker et
+   le titre démarrent à sa droite. Dès que la fenêtre dépasse ~1 700 px, la grille
+   se recentre d'elle-même (`margin: auto`) et ce padding n'a plus d'effet. */
+@media (min-width: 981px) {
+  body[data-screen="join"] .join-screen {
+    padding-left: calc(clamp(64px, 9vw, 140px) + 24px);
+  }
 }
 body[data-screen="join"] .join-screen::before {
   position: absolute;
@@ -732,13 +745,8 @@ body[data-screen="join"] .landing-lede {
   font-size: clamp(0.92rem, 1.35vw, 1.14rem);
   line-height: 1.55;
 }
-body[data-screen="join"] .landing-rule {
-  margin: 0 0 30px;
-  color: var(--landing-muted);
-  font-family: var(--mono);
-  font-size: 0.69rem;
-}
 body[data-screen="join"] .join-console {
+  margin-top: 30px;
   display: block;
   width: min(430px, 100%);
   padding: 0;
@@ -840,7 +848,12 @@ body[data-screen="join"] .hint {
   font-family: var(--mono);
   font-size: 0.65rem;
 }
+/* Le panneau « salon privé » s'ouvre en superposition, pas en flux : dans le
+   flux il rallongeait la colonne de gauche, ce qui recentrait toute la grille
+   (le carrousel et sa légende descendaient sans raison) et le faisait passer
+   sous le crédit hackathon, faute de place dans la ligne de la grille. */
 body[data-screen="join"] .advanced-options {
+  position: relative;
   margin-top: 18px;
   padding: 0;
   border: 0;
@@ -853,14 +866,23 @@ body[data-screen="join"] .advanced-options summary {
   text-transform: none;
 }
 body[data-screen="join"] .advanced-options summary:hover { color: var(--landing-text); }
+body[data-screen="join"] .advanced-options[open] summary { color: var(--landing-text); }
 body[data-screen="join"] .advanced-grid {
+  /* Ouverture vers le haut : sous le résumé il ne reste qu'une centaine de
+     pixels avant le crédit de bas de page, alors que le panneau en fait ~245. */
+  position: absolute;
+  z-index: 12;
+  bottom: calc(100% + 10px);
+  left: 0;
   display: grid;
+  width: 100%;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  margin-top: 14px;
+  margin-top: 0;
   padding: 16px;
   border: 1px solid var(--landing-border);
   background: var(--landing-surface);
+  box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.55);
 }
 body[data-screen="join"] .advanced-grid .codename-field,
 body[data-screen="join"] .advanced-grid .mode-switch,
@@ -892,13 +914,6 @@ body[data-screen="join"] #join-btn:hover:not(:disabled) {
   background: var(--orange);
   color: #151524;
 }
-body[data-screen="join"] .landing-note {
-  margin: 16px 0 0;
-  color: var(--landing-muted);
-  font-family: var(--mono);
-  font-size: 0.58rem;
-}
-
 body[data-screen="join"] .character-stage {
   --orbit-radius: clamp(190px, 21vw, 310px);
   position: relative;
@@ -1799,6 +1814,16 @@ body[data-phase="game_over"] .question-frame { display: none; }
     gap: 20px;
   }
   body[data-screen="join"] .landing-copy { max-width: 620px; }
+  /* Colonne unique : la marge gauche disparaît, le motif passe à droite. */
+  body[data-screen="join"] .join-screen::before { left: auto; }
+  /* Ici la page redevient un flux vertical qui défile : le panneau privé
+     reprend sa place normale plutôt qu'une superposition. */
+  body[data-screen="join"] .advanced-grid {
+    position: static;
+    bottom: auto;
+    margin-top: 14px;
+    box-shadow: none;
+  }
   body[data-screen="join"] .character-stage {
     --orbit-radius: clamp(190px, 31vw, 280px);
     min-height: 500px;
@@ -1816,7 +1841,7 @@ body[data-phase="game_over"] .question-frame { display: none; }
     font-size: clamp(2.7rem, 14vw, 3.7rem);
   }
   body[data-screen="join"] .landing-lede { font-size: 0.92rem; }
-  body[data-screen="join"] .landing-rule { margin-bottom: 24px; }
+  body[data-screen="join"] .join-console { margin-top: 24px; }
   body[data-screen="join"] .advanced-grid { grid-template-columns: 1fr; }
   body[data-screen="join"] .advanced-grid > * { grid-column: 1 / -1; }
   body[data-screen="join"] .character-stage {

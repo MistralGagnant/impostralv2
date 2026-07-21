@@ -424,6 +424,27 @@
   syncLanguagePicker();
 
   // ------------------------------------------------------------------
+  // Salon privé : le panneau s'ouvre en superposition au-dessus de la copie
+  // (cf. style.css), il doit donc se refermer comme tout calque — Échap ou
+  // clic à l'extérieur — sinon il masque le bouton d'entrée en partie.
+  // ------------------------------------------------------------------
+  const advancedOptions = $("advanced-options");
+  if (advancedOptions) {
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !advancedOptions.open) return;
+      advancedOptions.open = false;
+      advancedOptions.querySelector("summary")?.focus();
+    });
+    const overlayMode = window.matchMedia("(min-width: 981px)");
+    document.addEventListener("pointerdown", (event) => {
+      // Sous 981 px le panneau reste dans le flux : le refermer sur un appui
+      // extérieur casserait le défilement tactile pendant la saisie.
+      if (!advancedOptions.open || !overlayMode.matches) return;
+      if (!advancedOptions.contains(event.target)) advancedOptions.open = false;
+    });
+  }
+
+  // ------------------------------------------------------------------
   // Connection
   // ------------------------------------------------------------------
   playBtn.addEventListener("click", play);
