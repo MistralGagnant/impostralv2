@@ -1268,7 +1268,27 @@
   // browser guessing from a partial download. Ignore it and read-along instead.
   const MIN_CLIP_SECONDS = 0.4;
   const MAX_CLIP_SECONDS = 25;
+  // Speaking pace of the Voxtral voices, measured over the generated clips:
+  // ~14 characters per second of wall clock at rate 1 (spread 8 to 18). It is
+  // what the line would take if it were spoken, and it is the only pace that
+  // owes nothing to the browser.
+  const SPEECH_CHARS_PER_SECOND = 14;
+  // The line runs slightly ahead of the voice on purpose: text lagging behind
+  // speech reads as broken, text a beat early reads as subtitles. Ahead is also
+  // the safe side of every estimate below.
+  const TYPE_LEAD = 0.82;
   let typing = null;
+
+  function spokenMs(text, rate) {
+    return (text.length / (SPEECH_CHARS_PER_SECOND * (rate || 1))) * 1000;
+  }
+
+  function readAlongMs(text) {
+    return Math.min(
+      TYPE_MAX_SECONDS * 1000,
+      Math.max(TYPE_MIN_SECONDS * 1000, (text.length / TYPE_CHARS_PER_SECOND) * 1000),
+    );
+  }
 
   function reducedMotion() {
     try {
@@ -1338,25 +1358,41 @@
   // wall-clock — `audio.duration` is never used to drive the progress frame by
   // frame, because a browser is free to revise the duration of an MP3 upwards
   // while it plays, which froze the line mid-sentence.
+  //
+  // That total is only ever as good as `audio.duration`, and Voxtral returns
+  // VBR MP3 with no Xing header: until the clip plays, the browser has nothing
+  // to read the length off and extrapolates it from the bitrate of the few
+  // frames it has, revising it as more arrive. A wrong total used to be
+  // harmless (the line ran at 70 % of it and a 6 s deadline capped it); now
+  // that the line lasts exactly the announced duration, an over-long guess is
+  // what leaves the text crawling seconds behind a voice that already stopped.
+  // So the duration is only trusted once the clip actually plays, and only
+  // within what the sentence could plausibly take to say.
   function typedRatio(state, now) {
     const elapsed = now - state.start;
 
     if (!state.paceMs) {
       const clip = state.audioUrl ? A.playbackProgress?.() : null;
       const mine = clip && clip.url === state.audioUrl && !clip.blocked ? clip : null;
-      const clipSeconds = mine ? mine.duration / (mine.rate || 1) : 0;
+      const clipSeconds = mine?.started ? mine.duration / (mine.rate || 1) : 0;
+      const spoken = spokenMs(state.full, mine?.rate);
       if (clipSeconds >= MIN_CLIP_SECONDS && clipSeconds <= MAX_CLIP_SECONDS) {
-        // The line lasts exactly as long as the voice does.
-        state.paceMs = clipSeconds * 1000;
-      } else if (!mine || elapsed >= VOICE_WAIT_MS) {
-        // No voice for this seat, or no usable duration in time: read-along
-        // pace rather than wait on metadata that may never come.
+        // The line lands just before the voice does — unless the voice claims a
+        // length no sentence that long could take, which is a guess, not a
+        // measurement.
         state.paceMs = Math.min(
-          TYPE_MAX_SECONDS * 1000,
-          Math.max(TYPE_MIN_SECONDS * 1000, (state.full.length / TYPE_CHARS_PER_SECOND) * 1000),
+          Math.max(clipSeconds * 1000 * TYPE_LEAD, spoken * 0.5),
+          spoken * 1.3,
         );
+      } else if (mine && elapsed < VOICE_WAIT_MS) {
+        return 0;   // brief hold while the clip starts and reports its length
+      } else if (state.audioUrl) {
+        // A voice is coming but never announced a usable length: speak-along
+        // pace, the one the clip itself runs at, rather than a browser guess.
+        state.paceMs = Math.max(TYPE_MIN_SECONDS * 1000, spoken * TYPE_LEAD);
       } else {
-        return 0;   // brief hold while the clip reports its length
+        // No voice for this seat: read-along pace.
+        state.paceMs = readAlongMs(state.full);
       }
     }
 
