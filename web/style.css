@@ -1101,7 +1101,13 @@ body[data-screen="join"] .hackathon-credit {
   white-space: normal;
 }
 body[data-screen="join"] .hackathon-credit span { margin: 0; }
-body[data-screen="join"] .hackathon-credit a { color: var(--landing-text-soft); }
+/* The award may wrap; the source link never does, so it stays one block
+   pinned to the right edge instead of breaking across two lines. */
+body[data-screen="join"] .hackathon-credit a {
+  flex: 0 0 auto;
+  color: var(--landing-text-soft);
+  white-space: nowrap;
+}
 body[data-screen="join"] .hackathon-credit a:hover { color: #fa500f; }
 
 /* --------------------------------------------------------------------------
@@ -1948,11 +1954,14 @@ body[data-phase="game_over"] .question-frame { display: none; }
   body[data-screen="join"] .character-carousel { width: 110px; height: 110px; }
   body[data-screen="join"] .carousel-floor { bottom: 6%; }
   body[data-screen="join"] .stage-caption { right: 0; bottom: 0; }
+  /* Stays a single row down to the narrowest phone: stacking dropped the
+     source link under the award instead of keeping it on the right, level
+     with it. The award wraps inside its own column if it has to. */
   body[data-screen="join"] .hackathon-credit {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
+    align-items: baseline;
+    gap: 10px;
   }
+  body[data-screen="join"] .hackathon-credit span { min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
