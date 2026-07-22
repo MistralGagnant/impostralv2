@@ -186,7 +186,17 @@
       position: absolute; top: 50%; transform: translateY(-50%);
       color: var(--muted); padding: 0;
     }
-    .st-meter-flag { min-width: 40px; }
+    /* No comparable ballot history: a hatched track, never an empty bar that
+       would read as a 0% hit rate. */
+    .st-track.is-empty {
+      background: repeating-linear-gradient(
+        -45deg, rgba(244, 239, 230, 0.07) 0 4px, transparent 4px 8px);
+    }
+    .st-meter-flag {
+      min-width: 40px; color: var(--faint);
+      font-family: var(--mono); font-size: 0.5rem; letter-spacing: 0.08em;
+      text-align: center;
+    }
     .st-meter-flag.is-best {
       display: inline-block; padding: 2px 6px; color: var(--gold);
       font-family: var(--mono); font-size: 0.5rem; font-weight: 700;

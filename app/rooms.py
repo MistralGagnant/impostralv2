@@ -40,7 +40,10 @@ class Seat:
     connected: bool = False  # Human-seat connection state.
     model: Optional[str] = None
     votes_total: int = 0
-    votes_correct: int = 0  # Votes correctly targeting an AI.
+    # Ballots that hit the kind of seat this player is playing to eliminate.
+    # Everyone hunts the AIs, except a hardcore agent, which wins by surviving
+    # whoever it sends home and is briefed to hunt the humans instead.
+    votes_on_target: int = 0
     eliminated_round: Optional[int] = None
     # An AI seat whose decisive ballot eliminated a human. It keeps playing but
     # can no longer win. Server-private: naming it publicly would expose the

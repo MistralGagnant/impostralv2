@@ -192,16 +192,35 @@ rotated on the seat's rank among the room's agents through
 
 Each finished game appends a JSON record to `IMPOSTRAL_STATS_PATH` (default
 `data/results.jsonl`). `app/game/stats.py` records each model's win, survival,
-elimination round, competitive vote accuracy, and whether the seat was
+elimination round, on-target vote rate, and whether the seat was
 disqualified for voting a human out. Humans are recorded too, but
 grouped anonymously into a single `Humans` bucket (never per pseudonym), so the
 dashboard compares humans against each AI model. Each record also carries its
 `mode` and `ruleset`. `/stats` exposes the combined aggregates plus the same
 shape per ruleset under `modes`, and `/stats.html` renders a Standard/Hardcore
 tab pair, because an agent rewarded for eliminating humans is not comparable to
-one punished for it. Records created before
-human tracking remain readable and are reported as unavailable human history;
-records created before hardcore existed count as standard games.
+one punished for it.
+
+`votes_on_target` counts the ballots that hit the kind of seat the voter is
+actually playing to eliminate. That is an AI for everyone — except a hardcore
+agent, which wins by surviving whatever it sends home and is briefed to hunt the
+humans, so its ballots are read against the humans. Scoring both sides of a
+hardcore table against "voted an AI" reported an agent's own objective as a
+miss, and left win rate as a copy of survival rate, which it necessarily is
+there: hardcore drops disqualification, so a surviving agent always wins. The
+target rate is what separates hardcore agents from each other, and the dashboard
+labels it per row and per ruleset. In a standard room survival can still run
+ahead of win rate, because an agent that votes a human out survives without
+winning.
+
+Records created before human tracking remain readable and are reported as
+unavailable human history. Records created before the ruleset split carry no
+`mode`; they were played under the pre-split balancing, which already rewarded
+hunting humans, so they belong to neither published ruleset and are left out of
+the `modes` breakdown instead of inflating the standard bucket. Older records
+only carry `votes_correct`, always meaning "voted an AI" — still the right
+reading everywhere except for a hardcore agent, whose ballots are therefore
+reported as having no target history rather than counted backwards.
 
 ## `mistralai` SDK version caveat
 
@@ -331,7 +350,13 @@ games; the client retries its WebSocket and returns to Play when the room is gon
 - A first-ballot tie triggers a second vote restricted to the tied seats.
 - A persistent tie uses cumulative public suspicion from prior rounds, then a secure draw only among exact ties.
 - Missing or invalid first-ballot votes count against the silent seat and do not improve its vote-accuracy statistics.
-- The selected seat is eliminated regardless of role, so every completed round eliminates one player.
+- The selected seat is eliminated regardless of role, so every completed round
+  eliminates one player. The client answers with a full-arena overlay, so a
+  round that continues waits `IMPOSTRAL_ELIMINATION_REVEAL_SECONDS` before
+  asking the next question: opening it underneath would put the answer panel on
+  screen over a question nobody has been able to read. A round that ends the
+  game waits only `IMPOSTRAL_ELIMINATION_PAUSE_SECONDS`, which is what lets
+  `game_over` land while the arena is still on screen.
 - An AI that votes a human out loses. Only the agents whose **decisive** ballot
   named the eliminated human are disqualified — a first ballot replaced by a
   runoff no longer counts, and a timeout vote falls on the silent seat itself,

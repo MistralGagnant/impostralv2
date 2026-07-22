@@ -471,14 +471,16 @@ class SortieAgentTest(unittest.TestCase):
         records = [
             game("hardcore", True),
             game("standard", False),
-            game(None, False),  # Antérieur au hardcore : compté en standard.
+            # Antérieur au découpage : joué sous l'ancien équilibrage, donc
+            # exclu des deux règlements publiés plutôt que versé au standard.
+            game(None, False),
         ]
         with patch.object(stats, "_read_records", return_value=records):
             result = stats.aggregate()
 
         # Le total global reste celui de toutes les parties enregistrées.
         self.assertEqual(result["total_games"], 3)
-        self.assertEqual(result["modes"]["standard"]["total_games"], 2)
+        self.assertEqual(result["modes"]["standard"]["total_games"], 1)
         self.assertEqual(result["modes"]["hardcore"]["total_games"], 1)
 
         def win_rate(mode: str) -> float:
@@ -491,6 +493,79 @@ class SortieAgentTest(unittest.TestCase):
 
         self.assertEqual(win_rate("hardcore"), 1.0)
         self.assertEqual(win_rate("standard"), 0.0)
+
+    def test_le_ciblage_hardcore_se_mesure_sur_les_humains(self) -> None:
+        """En hardcore, une IA marque en éliminant des humains, pas des IA."""
+        records = [{
+            "mode": "hardcore",
+            "rounds": 3,
+            "winners": [],
+            "llms": [{
+                "model": "mistral-large-latest",
+                "won": False,
+                "survived": False,
+                "eliminated_round": 2,
+                "votes_total": 4,
+                "votes_on_target": 3,
+            }],
+            "humans": [{
+                "won": False,
+                "survived": False,
+                "eliminated_round": 1,
+                "votes_total": 2,
+                "votes_on_target": 1,
+            }],
+        }]
+        with patch.object(stats, "_read_records", return_value=records):
+            rows = {
+                row["model"]: row
+                for row in stats.aggregate()["modes"]["hardcore"]["models"]
+            }
+        agent = rows["mistral-large-latest"]
+        self.assertTrue(agent["target_data_available"])
+        self.assertEqual(agent["vote_accuracy"], 0.75)
+        self.assertEqual(rows["Humans"]["vote_accuracy"], 0.5)
+
+    def test_les_bulletins_hardcore_anterieurs_ne_sont_pas_lus_a_lenvers(
+        self,
+    ) -> None:
+        """`votes_correct` voulait dire « a voté une IA » dans les deux camps.
+
+        Compter ça comme du ciblage humain donnerait exactement l'inverse du
+        résultat, donc ces bulletins-là sont déclarés sans historique.
+        """
+        records = [{
+            "mode": "hardcore",
+            "rounds": 3,
+            "winners": [],
+            "llms": [{
+                "model": "mistral-large-latest",
+                "won": False,
+                "survived": False,
+                "eliminated_round": 2,
+                "votes_total": 4,
+                "votes_correct": 3,
+            }],
+            "humans": [{
+                "won": False,
+                "survived": False,
+                "eliminated_round": 1,
+                "votes_total": 2,
+                "votes_correct": 1,
+            }],
+        }]
+        with patch.object(stats, "_read_records", return_value=records):
+            rows = {
+                row["model"]: row
+                for row in stats.aggregate()["modes"]["hardcore"]["models"]
+            }
+        agent = rows["mistral-large-latest"]
+        self.assertFalse(agent["target_data_available"])
+        self.assertEqual(agent["votes_total"], 0)
+        # Le camp humain vise les IA sous les deux règlements : sa lecture n'a
+        # pas changé, donc son historique reste valable.
+        self.assertTrue(rows["Humans"]["target_data_available"])
+        self.assertEqual(rows["Humans"]["vote_accuracy"], 0.5)
 
 
 class AgentAsyncSdkTest(unittest.IsolatedAsyncioTestCase):

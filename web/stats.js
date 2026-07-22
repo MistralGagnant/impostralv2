@@ -6,17 +6,36 @@
   const pct = (x) => Math.round((Number(x) || 0) * 100) + "%";
   const clamp01 = (x) => Math.max(0, Math.min(1, Number(x) || 0));
 
-  // The three compared measures. Order is fixed and never cycled. Colors are the
+  const isHuman = (row) => row.model === "Humans";
+
+  // Three compared measures. Order is fixed and never cycled. Colors are the
   // game's brand hues, validated for colorblind separation; every bar also
   // carries a text label and a printed value, so identity is never color-alone.
-  const METRICS = [
+  //
+  // The third is scored against whoever that player is trying to send home,
+  // which is not the same seat on both sides of a hardcore room: an agent there
+  // wins by surviving whatever it eliminates and is briefed to hunt the humans,
+  // so its ballots are read against the humans, not against the other AIs.
+  const BASE_METRICS = [
     { key: "team_win_rate", label: "Win rate", cssVar: "--m-win",
       hint: "Share of appearances that ended in a win." },
     { key: "survival_rate", label: "Survival", cssVar: "--m-survival",
       hint: "Share of appearances still alive at game end." },
-    { key: "vote_accuracy", label: "AI target rate", cssVar: "--m-accuracy",
-      hint: "Share of this player's votes that correctly hit an AI." },
   ];
+  const AI_TARGET = {
+    key: "vote_accuracy", label: "AI target rate", cssVar: "--m-accuracy",
+    hint: "Share of this player's votes that hit an AI.",
+  };
+  const HUMAN_TARGET = {
+    key: "vote_accuracy", label: "Human target rate", cssVar: "--m-accuracy",
+    hint: "Share of this agent's votes that sent a human home — what hardcore "
+      + "rewards it for.",
+  };
+
+  const huntsHumans = (mode, row) => mode === "hardcore" && !isHuman(row);
+  // Row-specific because the two sides of a hardcore table chase each other.
+  const metricsFor = (mode, row) =>
+    BASE_METRICS.concat(huntsHumans(mode, row) ? HUMAN_TARGET : AI_TARGET);
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -24,8 +43,6 @@
     if (text != null) node.textContent = text;
     return node;
   };
-
-  const isHuman = (row) => row.model === "Humans";
 
   function orderRows(models) {
     // Rank playable rows by win rate (survival breaks ties); rows without
@@ -39,16 +56,24 @@
     return { ranked: withData, unranked: withoutData };
   }
 
-  function metricLeaders(models) {
-    // The best value per metric, used only for a non-color "best" marker.
+  // A row only competes for "best" against rows measured the same way. Win rate
+  // and survival always are; the target rate is not, because a hardcore agent
+  // is scored on humans eliminated while the humans are scored on AIs.
+  const leaderGroup = (mode, row, key) =>
+    key === "vote_accuracy" && huntsHumans(mode, row) ? "vote_accuracy:human"
+      : key;
+
+  function metricLeaders(models, mode) {
+    // The best value per comparable group, used only for a non-color marker.
     const leaders = {};
-    for (const metric of METRICS) {
-      let best = -Infinity;
-      for (const row of models) {
-        if (!row.data_available) continue;
-        best = Math.max(best, Number(row[metric.key]) || 0);
+    for (const row of models) {
+      if (!row.data_available) continue;
+      for (const key of ["team_win_rate", "survival_rate", "vote_accuracy"]) {
+        if (key === "vote_accuracy" && !row.target_data_available) continue;
+        const group = leaderGroup(mode, row, key);
+        leaders[group] = Math.max(leaders[group] ?? -Infinity,
+          Number(row[key]) || 0);
       }
-      leaders[metric.key] = best;
     }
     return leaders;
   }
@@ -60,6 +85,17 @@
     const rowEl = el("div", "st-meter");
     const label = el("div", "st-meter-label", metric.label);
     rowEl.appendChild(label);
+
+    // Games recorded before ballots were scored per ruleset have no comparable
+    // target history; an empty bar would read as a 0% hit rate.
+    if (metric.key === "vote_accuracy" && !row.target_data_available) {
+      rowEl.appendChild(el("div", "st-track is-empty"));
+      const none = el("div", "st-meter-flag", "no data");
+      none.title = "No ballots recorded under the current scoring for this "
+        + "player.";
+      rowEl.appendChild(none);
+      return rowEl;
+    }
 
     const track = el("div", "st-track");
     track.style.setProperty("--c", `var(${metric.cssVar})`);
@@ -90,9 +126,20 @@
     return rowEl;
   }
 
-  function legend() {
+  function legend(mode) {
     const wrap = el("div", "st-legend");
-    for (const metric of METRICS) {
+    // The legend describes the board as a whole, so in hardcore the third
+    // swatch is named for what it measures on both sides at once.
+    const metrics = BASE_METRICS.concat(
+      mode === "hardcore"
+        ? {
+          key: "vote_accuracy", label: "Target rate", cssVar: "--m-accuracy",
+          hint: "Share of a player's votes that hit its own target: the "
+            + "humans for an agent, the AIs for the humans.",
+        }
+        : AI_TARGET,
+    );
+    for (const metric of metrics) {
       const item = el("span", "st-legend-item");
       const sw = el("span", "st-swatch");
       sw.style.background = `var(${metric.cssVar})`;
@@ -104,7 +151,7 @@
     return wrap;
   }
 
-  function entityCard(row, rank, leaders) {
+  function entityCard(row, rank, leaders, mode) {
     const card = el("div", "st-card" + (isHuman(row) ? " is-human" : ""));
 
     const head = el("div", "st-card-head");
@@ -143,8 +190,9 @@
     }
 
     const meters = el("div", "st-meters");
-    for (const metric of METRICS) {
-      const isLeader = (Number(row[metric.key]) || 0) >= leaders[metric.key]
+    for (const metric of metricsFor(mode, row)) {
+      const best = leaders[leaderGroup(mode, row, metric.key)];
+      const isLeader = (Number(row[metric.key]) || 0) >= best
         && (Number(row[metric.key]) || 0) > 0;
       meters.appendChild(meter(row, metric, isLeader));
     }
@@ -194,14 +242,17 @@
     return grid;
   }
 
-  function detailsTable(models) {
+  function detailsTable(models, mode) {
     const scroll = el("div", "st-table-scroll");
     const table = el("table", "st-table");
 
     const thead = el("thead");
     const htr = el("tr");
+    // One column, two readings in hardcore: each row is scored against the
+    // side it is playing to eliminate, so the header stays neutral there.
+    const targetHeader = mode === "hardcore" ? "On target" : "AI target";
     for (const h of ["Player", "Appearances", "Win rate", "Survival",
-      "AI target", "Votes", "Avg rounds"]) {
+      targetHeader, "Votes", "Avg rounds"]) {
       htr.appendChild(el("th", null, h));
     }
     thead.appendChild(htr);
@@ -210,9 +261,10 @@
     const tbody = el("tbody");
     for (const r of models) {
       const tr = el("tr", isHuman(r) ? "is-human" : null);
+      const target = r.target_data_available ? pct(r.vote_accuracy) : "—";
       const cells = r.data_available
         ? [r.model, r.games, pct(r.team_win_rate), pct(r.survival_rate),
-          pct(r.vote_accuracy), r.votes_total,
+          target, r.votes_total,
           (Number(r.avg_rounds_survived) || 0).toFixed(1)]
         : [r.model, r.games, "—", "—", "—", "—", "—"];
       cells.forEach((cell, index) => {
@@ -325,32 +377,39 @@
     content.appendChild(heroTiles(data));
 
     const { ranked, unranked } = orderRows(data.models);
-    const leaders = metricLeaders(data.models);
+    const leaders = metricLeaders(data.models, selectedMode);
 
     const board = el("div", "st-board");
-    board.appendChild(legend());
+    board.appendChild(legend(selectedMode));
     let rank = 0;
     for (const row of ranked) {
       rank += 1;
-      board.appendChild(entityCard(row, rank, leaders));
+      board.appendChild(entityCard(row, rank, leaders, selectedMode));
     }
     for (const row of unranked) {
-      board.appendChild(entityCard(row, 0, leaders));
+      board.appendChild(entityCard(row, 0, leaders, selectedMode));
     }
     content.appendChild(section("Leaderboard", board,
       "Ranked by win rate"));
 
-    content.appendChild(section("Full breakdown", detailsTable(data.models),
-      "Every metric"));
+    content.appendChild(section("Full breakdown",
+      detailsTable(data.models, selectedMode), "Every metric"));
 
     const legacy = data.legacy_games_without_humans || 0;
     const meta = el("p", "st-meta");
     meta.textContent =
       `${data.total_games} ${selectedMode} ` +
       `game${data.total_games === 1 ? "" : "s"} recorded. ` +
-      "Win rate counts winning appearances, survival counts seats still alive " +
-      "at game end, and AI target rate is the share of a player's votes that " +
-      "correctly hit an AI." +
+      "Win rate counts winning appearances and survival counts seats still " +
+      "alive at game end. " +
+      (selectedMode === "hardcore"
+        ? "An AI here wins by surviving whatever it eliminates, so win rate " +
+          "tracks survival by design and the target rate is what separates " +
+          "the agents: it reads their votes against the humans they are " +
+          "briefed to hunt, and the humans' votes against the AIs."
+        : "AI target rate is the share of a player's votes that hit an AI. " +
+          "An AI that votes a human out survives without winning, which is " +
+          "why survival can run ahead of win rate.") +
       (legacy
         ? ` Human metrics are unavailable for ${legacy} older ` +
           `game${legacy === 1 ? "" : "s"} recorded before human tracking.`

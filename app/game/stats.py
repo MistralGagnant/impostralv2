@@ -13,7 +13,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..config import get_settings
-from ..modes import DEFAULT_MODE, SUPPORTED_MODES, normalize_mode, ruleset_id
+from ..modes import (
+    DEFAULT_MODE,
+    SUPPORTED_MODES,
+    is_hardcore,
+    normalize_mode,
+    ruleset_id,
+)
 
 log = logging.getLogger("impostral.stats")
 
@@ -39,7 +45,7 @@ def record_game(room, winners: list[str]) -> None:
                 "disqualified": bool(getattr(seat, "disqualified", False)),
                 "eliminated_round": seat.eliminated_round,
                 "votes_total": seat.votes_total,
-                "votes_correct": seat.votes_correct,
+                "votes_on_target": seat.votes_on_target,
             }
             for seat in room.seats.values()
             if seat.kind == "llm"
@@ -53,7 +59,7 @@ def record_game(room, winners: list[str]) -> None:
                 "survived": seat.alive,
                 "eliminated_round": seat.eliminated_round,
                 "votes_total": seat.votes_total,
-                "votes_correct": seat.votes_correct,
+                "votes_on_target": seat.votes_on_target,
             }
             for seat in room.seats.values()
             if seat.kind == "human"
@@ -107,6 +113,24 @@ def _read_records() -> list[dict]:
     return records
 
 
+def _on_target_votes(seat: dict, *, hardcore: bool, is_llm: bool) -> tuple[int, int]:
+    """Return this seat's (counted ballots, on-target ballots).
+
+    `votes_on_target` is scored against the kind of seat the voter is actually
+    playing to eliminate, which is a human for a hardcore agent. Records
+    predating that only carry `votes_correct`, always meaning "voted an AI".
+    That reading still holds everywhere except for a hardcore agent, whose
+    objective is the exact opposite, so those older ballots are reported as
+    having no target history rather than counted backwards.
+    """
+    total = seat.get("votes_total", 0) or 0
+    if "votes_on_target" in seat:
+        return total, seat.get("votes_on_target", 0) or 0
+    if "votes_correct" in seat and not (hardcore and is_llm):
+        return total, seat.get("votes_correct", 0) or 0
+    return 0, 0
+
+
 def _aggregate_records(records: list[dict]) -> dict:
     """Return per-model aggregates over one already selected set of games."""
     # Accumulators keyed by model name.
@@ -120,20 +144,25 @@ def _aggregate_records(records: list[dict]) -> dict:
                 "wins": 0,
                 "survivals": 0,
                 "votes_total": 0,
-                "votes_correct": 0,
+                "votes_on_target": 0,
                 "rounds_survived_sum": 0,
             },
         )
 
-    def accumulate(seat: dict, model: str, rounds: int) -> None:
+    def accumulate(
+        seat: dict, model: str, rounds: int, *, hardcore: bool, is_llm: bool
+    ) -> None:
         b = bucket(model)
         b["games"] += 1
         if seat.get("won"):
             b["wins"] += 1
         if seat.get("survived"):
             b["survivals"] += 1
-        b["votes_total"] += seat.get("votes_total", 0) or 0
-        b["votes_correct"] += seat.get("votes_correct", 0) or 0
+        counted, on_target = _on_target_votes(
+            seat, hardcore=hardcore, is_llm=is_llm
+        )
+        b["votes_total"] += counted
+        b["votes_on_target"] += on_target
         elim = seat.get("eliminated_round")
         b["rounds_survived_sum"] += elim if elim is not None else rounds
 
@@ -145,14 +174,23 @@ def _aggregate_records(records: list[dict]) -> dict:
 
     for rec in records:
         rounds = rec.get("rounds", 0) or 0
+        hardcore = is_hardcore(rec.get("mode"))
         for seat in rec.get("llms", []):
-            accumulate(seat, seat.get("model") or "(unknown)", rounds)
+            accumulate(
+                seat,
+                seat.get("model") or "(unknown)",
+                rounds,
+                hardcore=hardcore,
+                is_llm=True,
+            )
         # All humans across every game collapse into one "Humans" bucket.
         human_seats = rec.get("humans") or []
         if not human_seats:
             legacy_games_without_humans += 1
         for seat in human_seats:
-            accumulate(seat, "Humans", rounds)
+            accumulate(
+                seat, "Humans", rounds, hardcore=hardcore, is_llm=False
+            )
 
     models = []
     for model, b in sorted(acc.items(), key=lambda item: (item[0] != "Humans", item[0])):
@@ -164,10 +202,12 @@ def _aggregate_records(records: list[dict]) -> dict:
                 "games": b["games"],
                 "team_win_rate": b["wins"] / games,
                 "survival_rate": b["survivals"] / games,
-                "vote_accuracy": b["votes_correct"] / votes,
+                "vote_accuracy": b["votes_on_target"] / votes,
                 "votes_total": b["votes_total"],
                 "avg_rounds_survived": b["rounds_survived_sum"] / games,
                 "data_available": bool(b["games"]),
+                # A row can have games but no comparable ballot history.
+                "target_data_available": bool(b["votes_total"]),
                 "legacy_games_without_data": (
                     legacy_games_without_humans if model == "Humans" else 0
                 ),
@@ -187,8 +227,13 @@ def aggregate() -> dict:
     The top-level keys keep their original meaning — every recorded game, both
     rulesets mixed — so an existing consumer is unaffected. `modes` splits the
     same numbers per ruleset, because a hardcore agent hunting humans is not
-    comparable to a standard one. Records written before hardcore existed have
-    no `mode` and are counted as standard games.
+    comparable to a standard one.
+
+    Records written before hardcore existed carry no `mode`. They used to be
+    folded into the standard bucket, which filled it with games played under
+    the pre-split balancing — where an agent was already rewarded for
+    eliminating humans. They belong to neither published ruleset, so they are
+    now left out of the breakdown entirely.
     """
     records = _read_records()
     return {
@@ -198,7 +243,8 @@ def aggregate() -> dict:
                 [
                     record
                     for record in records
-                    if normalize_mode(record.get("mode")) == mode
+                    if record.get("mode")
+                    and normalize_mode(record.get("mode")) == mode
                 ]
             )
             for mode in SUPPORTED_MODES
