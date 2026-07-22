@@ -2326,10 +2326,14 @@ body[data-screen="game"] textarea:focus-visible {
     display: grid;
     height: auto;
     min-height: 0;
+    /* Le bulletin suit immédiatement les personnages : c'est le geste de la
+       manche, et il doit tenir sous la grille sans défilement. Les paramètres
+       de la partie — manche, joueurs, chrono, fil en direct — ne se consultent
+       qu'entre deux décisions et passent donc tout en bas. */
     grid-template-areas:
       "arena"
-      "mission"
-      "vote";
+      "vote"
+      "mission";
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     overflow: visible;

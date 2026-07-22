@@ -293,14 +293,19 @@ Phones and small screens run the 2D arena, where the seats are a scrolling card
 grid taller than the viewport. The question is therefore stuck to the top of
 that scroll and the answer bar to the bottom, so reading the card and answering
 it are never a scroll apart, and a question or a ballot opening scrolls the
-arena back under the player's eyes. A seat card is itself a ballot there, as the
-arena label already was in 3D: aiming at a player checks its box in the vote
-panel, aiming at it again within 450 ms sends the vote. That second tap is the
-only vote gesture a thumb can reach, since the panel lives under the grid; on a
-pointer it merely doubles the **Submit vote** button, which stays the explicit
-path. The panel's own options keep a plain select on click, because their arrow
-navigation fires synthetic clicks that a return trip over one seat would
-otherwise turn into a vote.
+arena back under the player's eyes. The column below the grid is ordered by the
+gesture it serves: the vote panel comes straight after the players, and the
+round's own parameters — round, seat count, timer, live feed — sit last, since
+they are only read between two decisions. A seat card is itself a ballot there,
+as the arena label already was in 3D: aiming at a player checks its box in the
+vote panel, aiming at it again within 600 ms sends the vote. That window is a
+thumb's double tap rather than a mouse's double click. The ballot paints those
+cards as targets as soon as it opens, which is what gives them `cursor: pointer`
+and `touch-action: manipulation`; without that paint a phone read the second tap
+as a zoom instead of a vote. On a pointer the gesture merely doubles the
+**Submit vote** button, which stays the explicit path. The panel's own options
+keep a plain select on click, because their arrow navigation fires synthetic
+clicks that a return trip over one seat would otherwise turn into a vote.
 
 ## WebSocket protocol
 

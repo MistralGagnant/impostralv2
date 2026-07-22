@@ -1749,8 +1749,10 @@
   // Deux appuis rapprochés sur le même joueur valent validation. C'est le seul
   // geste de vote atteignable au pouce sur mobile, où le bouton « Voter » vit
   // sous la grille ; sur desktop il double simplement ce bouton, qui reste la
-  // voie explicite.
-  const DOUBLE_PICK_MS = 450;
+  // voie explicite. La fenêtre est celle d'un double appui au pouce, plus
+  // large que celle d'un double-clic à la souris : 450 ms demandaient une
+  // vivacité que le doigt n'a pas.
+  const DOUBLE_PICK_MS = 600;
 
   function buildVotePanel(targets, requestId) {
     let selectedTarget = "";
@@ -1761,6 +1763,14 @@
     arena3d?.setVoteTargets(targets);
     voteTargets = new Set(targets);
     votePicked = "";
+    // Indispensable, et pas seulement décoratif : c'est ce repeint qui pose
+    // `vote-target` sur les cartes, donc `cursor: pointer` et surtout
+    // `touch-action: manipulation`. Sans lui, la carte n'était un bulletin
+    // qu'à partir du deuxième appui — le premier ne marquait rien, et le
+    // navigateur mobile traitait le suivant comme un double-tap de zoom au
+    // lieu d'un second clic. `renderSeats` ne repasse pas ici : le
+    // `phase_change` qui le déclenche précède l'ouverture du ballot.
+    paintVoteSeats();
     // Un seul chemin de sélection, qu'on clique la case du panneau,
     // l'étiquette du joueur dans l'arène 3D ou sa carte dans l'arène 2D.
     const select = (seatId) => {
