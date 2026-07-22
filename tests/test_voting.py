@@ -36,7 +36,7 @@ class StubSeat:
         self.alive = True
         self.connected = kind == "human"
         self.votes_total = 0
-        self.votes_correct = 0
+        self.votes_on_target = 0
         self.eliminated_round = None
         self.disqualified = False
 
@@ -370,6 +370,77 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
             await engine._resolution_phase()
 
         self.assertFalse(voter.disqualified)
+
+    async def test_the_reveal_owes_the_overlay_the_rest_of_its_screen_time(
+        self,
+    ) -> None:
+        """The next question must not open under the elimination overlay."""
+        target = StubSeat("Player B", "llm", StubAgent())
+        room = StubRoom([StubSeat("Player A", "human"), target])
+        engine = make_engine(room)
+        engine.settings.elimination_pause_seconds = 1.5
+        engine.settings.elimination_reveal_seconds = 4.4
+        engine._pending_eliminated = target.id
+
+        with patch("app.game.state_machine.asyncio.sleep", new=AsyncMock()):
+            revealed = await engine._resolution_phase()
+
+        self.assertTrue(revealed)
+        self.assertAlmostEqual(engine._remaining_elimination_reveal(), 2.9)
+
+    async def test_a_ballot_that_eliminated_nobody_owes_no_reveal(self) -> None:
+        room = StubRoom([StubSeat("Player A", "human"),
+                         StubSeat("Player B", "llm", StubAgent())])
+        engine = make_engine(room)
+        engine._pending_eliminated = None
+
+        with patch("app.game.state_machine.asyncio.sleep", new=AsyncMock()):
+            self.assertFalse(await engine._resolution_phase())
+
+    async def test_a_standard_agent_is_scored_on_the_ais_it_votes_out(
+        self,
+    ) -> None:
+        human = StubSeat("Player A", "human")
+        ai = StubSeat("Player B", "llm", StubAgent(["Player C"]))
+        other_ai = StubSeat("Player C", "llm", StubAgent())
+        voting_human = StubSeat("Player D", "human")
+        room = StubRoom([human, ai, other_ai, voting_human])
+        engine = make_engine(room)
+        engine._request_human = AsyncMock(return_value={"target": "Player C"})
+
+        await engine._collect_ballot([ai, voting_human], 1)
+
+        self.assertEqual(ai.votes_on_target, 1)
+        self.assertEqual(voting_human.votes_on_target, 1)
+
+    async def test_a_hardcore_agent_is_scored_on_the_humans_it_votes_out(
+        self,
+    ) -> None:
+        """Hardcore inverts the agents' objective, so it inverts their score.
+
+        Reading both sides against "voted an AI" reported a hardcore agent's
+        own brief — hunt the humans — as a miss.
+        """
+        human = StubSeat("Player A", "human")
+        hunter = StubSeat("Player B", "llm", StubAgent(["Player A"]))
+        other_ai = StubSeat("Player C", "llm", StubAgent(["Player B"]))
+        voting_human = StubSeat("Player D", "human")
+        room = StubRoom(
+            [human, hunter, other_ai, voting_human], mode="hardcore"
+        )
+        engine = make_engine(room)
+        engine._request_human = AsyncMock(return_value={"target": "Player C"})
+
+        await engine._collect_ballot([hunter, other_ai, voting_human], 1)
+
+        # The hunter sent a human home: on target under this ruleset.
+        self.assertEqual(hunter.votes_on_target, 1)
+        # Voting another AI is off target for a hardcore agent, even though it
+        # would have been the only right answer in a standard room.
+        self.assertEqual(other_ai.votes_on_target, 0)
+        self.assertEqual(other_ai.votes_total, 1)
+        # The humans keep hunting the AIs in both rulesets.
+        self.assertEqual(voting_human.votes_on_target, 1)
 
     async def test_a_runoff_ballot_replaces_the_first_one(self) -> None:
         first = StubSeat("Player C", "llm", StubAgent(["Player A", "Player B"]))

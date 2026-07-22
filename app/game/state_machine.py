@@ -77,12 +77,17 @@ class GameEngine:
                 if self._check_end():
                     break
                 await self._vote_phase()
-                await self._resolution_phase()
+                revealed = await self._resolution_phase()
 
                 if self._check_end():
                     break
                 if self.room.round_no >= self._planned_rounds():
                     break
+                # The elimination overlay is still covering the arena. Asking
+                # the next question underneath it would open the answer panel
+                # over a question the humans have not been able to read.
+                if revealed:
+                    await asyncio.sleep(self._remaining_elimination_reveal())
 
             await self._game_over()
         except asyncio.CancelledError:
@@ -490,9 +495,21 @@ class GameEngine:
             target = self.room.seats.get(target_id)
             if voter and valid:
                 voter.votes_total += 1
-                if target and target.kind == "llm":
-                    voter.votes_correct += 1
+                if target and target.kind == self._hunted_kind(voter):
+                    voter.votes_on_target += 1
         return tally
+
+    def _hunted_kind(self, voter) -> str:
+        """The seat kind this voter is playing to eliminate.
+
+        Everyone hunts the AIs — except a hardcore agent, whose whole brief is
+        the opposite: it wins by surviving whoever it sends home, so a ballot on
+        a human is the on-target one. Scoring both sides against "voted an AI"
+        made the hardcore dashboard report an agent's own objective as a miss.
+        """
+        if self.hardcore and getattr(voter, "kind", "") == "llm":
+            return "human"
+        return "llm"
 
     async def _collect_vote(
         self, seat, dur: int, candidates: Optional[list[str]] = None
@@ -580,7 +597,12 @@ class GameEngine:
     # ------------------------------------------------------------------
     # RESOLUTION phase
     # ------------------------------------------------------------------
-    async def _resolution_phase(self) -> None:
+    async def _resolution_phase(self) -> bool:
+        """Reveal the ballot outcome. Returns True when a seat was eliminated.
+
+        Only an actual elimination raises the client overlay, so only then does
+        the caller owe it the rest of its screen time.
+        """
         self.room.phase = Phase.RESOLUTION
         eliminated = getattr(self, "_pending_eliminated", None)
         if eliminated and eliminated in self.room.seats:
@@ -634,7 +656,19 @@ class GameEngine:
         else:
             await self._system(tr(self.language, "no_elimination"))
         await self._broadcast_state()
-        await asyncio.sleep(1.5)
+        # Short on purpose: `game_over` is meant to land while the arena, and
+        # the overlay above it, are still on screen.
+        await asyncio.sleep(max(
+            0.0,
+            float(getattr(self.settings, "elimination_pause_seconds", 1.5)),
+        ))
+        return bool(eliminated and eliminated in self.room.seats)
+
+    def _remaining_elimination_reveal(self) -> float:
+        """Screen time the elimination overlay still owns after the pause."""
+        total = float(getattr(self.settings, "elimination_reveal_seconds", 4.4))
+        spent = float(getattr(self.settings, "elimination_pause_seconds", 1.5))
+        return max(0.0, total - spent)
 
     # ------------------------------------------------------------------
     # End of game

@@ -77,6 +77,15 @@ class Settings(BaseSettings):
     # squeeze chat + TTS into the leftover seconds.
     agent_waits_for_input_window: bool = False
     vote_seconds: int = 20
+    # The elimination overlay covers the whole arena on the client. The engine
+    # leaves `elimination_pause_seconds` before moving on, which is what lets
+    # `game_over` land while the arena is still on screen. When the game
+    # continues instead, the next question must wait for the overlay to clear:
+    # opening it underneath would put the answer panel on screen over a
+    # question nobody can read yet. Keep the reveal in sync with the overlay
+    # lifetime in `web/app.js` (`showElimination`).
+    elimination_pause_seconds: float = 1.5
+    elimination_reveal_seconds: float = 4.4
     # Accept a deadline auto-submit that was already in flight over the socket.
     input_grace_seconds: float = 1.25
     # Fixed reveal cadence used to hide response-time tells.
