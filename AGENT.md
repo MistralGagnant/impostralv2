@@ -124,6 +124,30 @@ themselves are only revealed once its fade-in is over
 (`RESULT_REVEAL_DELAY_MS`): revealing them right away would flash every living
 seat's role and model behind a still transparent overlay.
 
+## Checking the interface
+
+`package.json` pins **Playwright** as the only Node dependency (`npm install`,
+then `npx playwright install chromium`). It exists to drive a real browser
+through a whole round, because the phase UI is unreachable from the Python
+tests: seat cards, ballots, and the sticky mobile panels only exist once a
+socket has walked question -> vote -> resolution. Mock mode with shortened
+timings makes that walk cheap:
+
+```bash
+MISTRAL_API_KEY= IMPOSTRAL_NUM_HUMANS=1 IMPOSTRAL_MIN_PUBLIC_START_HUMANS=1 \
+IMPOSTRAL_HUMAN_WAIT_SECONDS=2 IMPOSTRAL_QUESTION_SECONDS=6 \
+IMPOSTRAL_ANSWER_TURN_SECONDS=4 IMPOSTRAL_ANSWER_REVEAL_MIN_SECONDS=0.4 \
+./venv/bin/uvicorn app.main:app --port 8011
+```
+
+A phone is a device viewport (`devices['Pixel 5']`) with `tap()`, not a narrow
+window: `arena3d-loader.js` picks its renderer once at load, so a desktop window
+resized afterwards keeps the 3D arena and never exercises the 2D card grid.
+Assert on the `submit_vote` frame leaving the socket rather than on the vote
+panel closing — a tie reopens it for a runoff, which otherwise reads as a vote
+that was never sent. The 3D labels are repositioned every frame, so Playwright's
+stability check never settles on them; click their centre through `page.mouse`.
+
 ## Default Mistral models (`app/config.py`)
 
 | Role | Model | Environment override |
