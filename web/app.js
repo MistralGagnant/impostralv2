@@ -42,6 +42,13 @@
   // Latest ballot: seat id -> votes received, shown as badges on the arena.
   let voteTally = {};
   let voteEliminated = null;
+  // Ballot en cours vu depuis l'arène 2D : les cartes de siège deviennent
+  // cliquables comme les étiquettes 3D le sont déjà sur desktop. `renderSeats`
+  // recrée les nœuds à chaque manche, donc l'écoute est déléguée sur `#seats`
+  // et l'état vit ici.
+  let voteTargets = new Set();
+  let votePicked = "";
+  let voteActivate = null;
   let activeAnswerTurn = null;
   let activeAnswerRequestId = "";
   let arena3d = null;
@@ -1143,9 +1150,41 @@
       div.append(avatarWrap, meta, answer);
       seatsEl.appendChild(div);
     }
+    paintVoteSeats();
     renderMissionStatus();
     syncArena();
   }
+
+  // Sur téléphone la page défile — arène, puis panneau tactique, puis vote — et
+  // rien ne garantit qu'on regarde l'arène quand une question ou un ballot
+  // s'ouvre. On l'y ramène, la question collante et la barre de réponse tenant
+  // alors les deux extrémités de l'écran. Sans effet en 3D, où tout est déjà
+  // visible d'un bloc.
+  function focusArena() {
+    const shell = document.querySelector(".arena-shell");
+    if (!shell || !document.querySelector(".arena-viz")?.classList.contains("arena-2d")) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    shell.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+  }
+
+  // Marque les cartes votables et celle qui est visée. Volontairement sans
+  // `tabindex` ni `role` : le panneau de vote reste le chemin clavier et
+  // lecteur d'écran, la carte n'ajoute qu'une cible au doigt et à la souris.
+  function paintVoteSeats() {
+    for (const el of seatsEl.querySelectorAll(".seat")) {
+      const id = el.dataset.seat;
+      el.classList.toggle("vote-target", voteTargets.has(id));
+      el.classList.toggle("vote-picked", Boolean(id) && id === votePicked);
+    }
+  }
+
+  seatsEl.addEventListener("click", (event) => {
+    if (!voteActivate) return;
+    const el = event.target.closest?.(".seat");
+    const id = el?.dataset.seat;
+    if (!id || !voteTargets.has(id)) return;
+    voteActivate(id);
+  });
 
   function syncArena() {
     if (!arena3d) return;
@@ -1245,11 +1284,17 @@
       }
     } else {
       activeAnswerRequestId = "";
-      turnStatus.textContent = phaseLabel(msg.phase) || t("phase.live");
+      // Le cadre de la question est le seul bandeau toujours à l'écran sur
+      // téléphone : c'est là que le geste de vote doit être rappelé, le
+      // panneau vivant sous la grille.
+      turnStatus.textContent = msg.phase === "vote"
+        ? t("vote.pick_hint")
+        : phaseLabel(msg.phase) || t("phase.live");
     }
     hideInput();
     hideVote();
     renderSeats();
+    if (msg.phase === "question" || msg.phase === "vote") focusArena();
     arena3d?.setPhase(msg.phase, visiblePrompt);
     if (phaseCountdown) {
       clearInterval(phaseCountdown);
@@ -1701,6 +1746,12 @@
     return { textarea: ta, btn, cleanup, submitDraft };
   }
 
+  // Deux appuis rapprochés sur le même joueur valent validation. C'est le seul
+  // geste de vote atteignable au pouce sur mobile, où le bouton « Voter » vit
+  // sous la grille ; sur desktop il double simplement ce bouton, qui reste la
+  // voie explicite.
+  const DOUBLE_PICK_MS = 450;
+
   function buildVotePanel(targets, requestId) {
     let selectedTarget = "";
     const options = [];
@@ -1708,21 +1759,49 @@
     voteOptions.innerHTML = "";
     submitVote.disabled = true;
     arena3d?.setVoteTargets(targets);
-    // Un seul chemin de sélection, qu'on clique la case du panneau ou
-    // l'étiquette du joueur dans l'arène 3D.
+    voteTargets = new Set(targets);
+    votePicked = "";
+    // Un seul chemin de sélection, qu'on clique la case du panneau,
+    // l'étiquette du joueur dans l'arène 3D ou sa carte dans l'arène 2D.
     const select = (seatId) => {
       const option = optionBySeat.get(seatId);
       if (!option) return;
       const changed = selectedTarget !== seatId;
       selectedTarget = seatId;
+      votePicked = seatId;
       submitVote.disabled = false;
       arena3d?.setSelected(seatId);
       for (const node of options) {
         node.setAttribute("aria-checked", String(node === option));
       }
+      paintVoteSeats();
       if (changed) S?.play("select");
     };
-    arena3d?.setVoteHandler?.(select);
+    const sendVote = () => {
+      if (!selectedTarget) return;
+      S?.play("submit");
+      ws.send(JSON.stringify({
+        type: "submit_vote",
+        request_id: requestId,
+        target: selectedTarget,
+      }));
+      hideVote();
+    };
+    // Chemin pointeur/doigt : viser, puis re-viser aussitôt pour valider. Le
+    // panneau garde un simple `select` au clavier, car sa navigation aux
+    // flèches déclenche des `click()` synthétiques qu'un aller-retour sur le
+    // même siège transformerait en vote involontaire.
+    let lastPick = { seat: "", at: 0 };
+    const activate = (seatId) => {
+      if (!optionBySeat.has(seatId)) return;
+      const now = performance.now();
+      const again = lastPick.seat === seatId && now - lastPick.at < DOUBLE_PICK_MS;
+      lastPick = again ? { seat: "", at: 0 } : { seat: seatId, at: now };
+      if (again && selectedTarget === seatId) sendVote();
+      else select(seatId);
+    };
+    arena3d?.setVoteHandler?.(activate);
+    voteActivate = activate;
     for (const t of targets) {
       const seatIndex = Math.max(0, seats.findIndex((seat) => seat.id === t));
       const option = document.createElement("button");
@@ -1737,6 +1816,7 @@
       label.textContent = displaySeat(t);
       option.append(img, label);
       option.addEventListener("click", () => select(t));
+      option.addEventListener("dblclick", () => { if (selectedTarget === t) sendVote(); });
       option.addEventListener("keydown", (event) => {
         if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"].includes(event.key)) return;
         event.preventDefault();
@@ -1750,16 +1830,7 @@
       optionBySeat.set(t, option);
       voteOptions.appendChild(option);
     }
-    submitVote.onclick = () => {
-      if (!selectedTarget) return;
-      S?.play("submit");
-      ws.send(JSON.stringify({
-        type: "submit_vote",
-        request_id: requestId,
-        target: selectedTarget,
-      }));
-      hideVote();
-    };
+    submitVote.onclick = sendVote;
     votePanel.classList.remove("hidden");
     gameScreen.classList.add("vote-open");
   }
@@ -2124,6 +2195,10 @@
     voteOptions.innerHTML = "";
     submitVote.disabled = true;
     submitVote.onclick = null;
+    voteActivate = null;
+    voteTargets = new Set();
+    votePicked = "";
+    paintVoteSeats();
     arena3d?.setVoteHandler?.(null);
     arena3d?.setVoteTargets([]);
     arena3d?.setSelected("");

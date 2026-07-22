@@ -289,6 +289,19 @@ seats.
 | `app/audio/store.py` | Ephemeral FIFO audio store served from `/audio/{id}`. |
 | `web/` | 3D arena, adaptive Web Audio, model statistics dashboard, phase UI, and the header **Rules** dialog: a minimal panel giving the round loop, then what winning means under each ruleset side by side. Both are always shown, since the landing does not yet know the room's mode. |
 
+Phones and small screens run the 2D arena, where the seats are a scrolling card
+grid taller than the viewport. The question is therefore stuck to the top of
+that scroll and the answer bar to the bottom, so reading the card and answering
+it are never a scroll apart, and a question or a ballot opening scrolls the
+arena back under the player's eyes. A seat card is itself a ballot there, as the
+arena label already was in 3D: aiming at a player checks its box in the vote
+panel, aiming at it again within 450 ms sends the vote. That second tap is the
+only vote gesture a thumb can reach, since the panel lives under the grid; on a
+pointer it merely doubles the **Submit vote** button, which stays the explicit
+path. The panel's own options keep a plain select on click, because their arrow
+navigation fires synthetic clicks that a return trip over one seat would
+otherwise turn into a vote.
+
 ## WebSocket protocol
 
 Quick play calls
