@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260721-v31"
+ASSET_VERSION = "20260722-v32"
 
 
 class WebUiTest(unittest.TestCase):
