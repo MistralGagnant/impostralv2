@@ -562,29 +562,32 @@ class GameEngine:
             log.info("Applied timeout vote penalty for %s to %s", seat.id, target)
         return seat.id, target, valid
 
-    def _disqualify_human_hunters(self, eliminated: str) -> None:
-        """Sink every agent whose decisive vote sent a human home.
+    def _score_human_elimination(self, eliminated: str) -> None:
+        """Record every agent whose decisive vote sent a human home.
 
-        Agents are told to hunt each other, never the humans. Breaking that
-        rule costs the game: the agent stays at the table and keeps voting, but
-        it is out of the running. The penalty is never announced, because
-        naming the punished seats would tell the humans exactly which seats are
-        AIs. Hardcore rooms skip this entirely: there, an AI wins by surviving,
-        whoever it eliminated, and it is briefed to hunt the humans on purpose.
+        The fact is the same in both rulesets; only its sign changes. In a
+        standard room, agents are told to hunt each other and never the humans,
+        so this ballot costs the game: the agent stays at the table and keeps
+        voting, but it is out of the running. In a hardcore room it is the
+        objective, and an agent that never lands one wins nothing.
+
+        Either way the score is never announced, because naming the seats it
+        touches would tell the humans exactly which seats are AIs.
         """
-        if self.hardcore:
-            return
         hunters = []
         for seat_id, target in getattr(self, "_last_ballot", {}).items():
             voter = self.room.seats.get(seat_id)
             if target == eliminated and voter and voter.kind == "llm":
-                voter.disqualified = True
+                voter.hunted_humans = True
+                if not self.hardcore:
+                    voter.disqualified = True
                 hunters.append(seat_id)
         if hunters:
             log.info(
-                "Agents disqualified for eliminating human %s: %s",
+                "Agents that eliminated human %s: %s (hardcore=%s)",
                 eliminated,
                 ", ".join(hunters),
+                self.hardcore,
             )
 
     @staticmethod
@@ -612,7 +615,7 @@ class GameEngine:
             if seat.kind == "llm":
                 self.eliminated_llms.append(seat.id)
             else:
-                self._disqualify_human_hunters(seat.id)
+                self._score_human_elimination(seat.id)
             role = seat.kind if self.settings.reveal_role_on_elimination else None
             model = seat.model if role == "llm" else None
             await self.room.broadcast(
@@ -684,6 +687,25 @@ class GameEngine:
             int(getattr(self.settings, "max_rounds", 5)),
         )
 
+    def _agent_labels(self, seat_ids: list[str]) -> str:
+        """Name agent seats with the model behind each one.
+
+        Only the verdict may use this: roles are public from that point on, so
+        pairing a seat with its model is a reveal, not a leak. The client keeps
+        rewriting "Player X" into the room language, and stripping the
+        ``-latest`` suffix matches what the roster prints next to the seat.
+
+        Callers only ever pass seats that are still alive: the verdict names
+        the agents the table failed to catch, never the ones it already voted
+        out, whose story the roster tells on its own.
+        """
+        labels = []
+        for seat_id in seat_ids:
+            seat = self.room.seats.get(seat_id)
+            model = str(getattr(seat, "model", "") or "").removesuffix("-latest")
+            labels.append(f"{seat_id} ({model})" if model else str(seat_id))
+        return ", ".join(labels)
+
     def _check_end(self) -> bool:
         return bool(self._end_reason(include_round_limit=False))
 
@@ -706,9 +728,15 @@ class GameEngine:
         self.room.updated_at = self.room.finished_at
         surviving_humans = [s.id for s in self.room.humans_alive()]
         surviving_llms = [s.id for s in self.room.llms_alive()]
-        # An agent that voted a human out survived without winning.
+        # Surviving is never enough on its own, and the two rulesets read the
+        # same ballot in opposite directions: a standard agent that voted a
+        # human out survived without winning, while a hardcore agent that never
+        # did survived without winning either.
+        def _has_a_claim(seat) -> bool:
+            return seat.hunted_humans if self.hardcore else not seat.disqualified
+
         eligible_llms = [
-            s.id for s in self.room.llms_alive() if not s.disqualified
+            s.id for s in self.room.llms_alive() if _has_a_claim(s)
         ]
         all_humans = [
             seat.id
@@ -716,6 +744,9 @@ class GameEngine:
             if seat.kind == "human"
         ]
         reason = self._end_reason() or "round_limit"
+        # Why a living agent can be out of the running, which is the opposite
+        # sentence in each ruleset: it hunted a human, or it never did.
+        barred = "idle" if self.hardcore else "hunted"
         if reason == "final_duel" and surviving_humans and eligible_llms:
             # A last human against a last agent is a degenerate ballot: the
             # agent can never be exposed, so the duel is a shared victory. The
@@ -727,27 +758,33 @@ class GameEngine:
                 self.language,
                 "final_duel_shared",
                 human=surviving_humans[0],
-                agent=eligible_llms[0],
+                agent=self._agent_labels(eligible_llms[:1]),
             )
         elif eligible_llms:
             winners = eligible_llms
             winner_type = "agents"
-            if reason == "human_extinction":
+            plural = "many" if len(winners) > 1 else "one"
+            key = (
+                "agents_no_humans"
+                if reason == "human_extinction"
+                else "agents_round_limit"
+            )
+            # Agents still seated without a claim lost it on the ruleset's own
+            # terms. Naming only the winners would leave the roster showing
+            # living agents that somehow did not win, so the sentence lists
+            # every survivor and then singles out who actually won.
+            if len(winners) < len(surviving_llms):
                 result = tr(
                     self.language,
-                    "agents_no_humans",
-                    winners=", ".join(winners),
+                    f"{key}_mixed_{barred}_{plural}",
+                    survivors=self._agent_labels(surviving_llms),
+                    winners=self._agent_labels(winners),
                 )
             else:
                 result = tr(
                     self.language,
-                    (
-                        "agents_round_limit_many"
-                        if len(winners) > 1
-                        else "agents_round_limit_one"
-                    ),
-                    winners=", ".join(winners),
-                    winner=winners[0],
+                    f"{key}_{plural}",
+                    winners=self._agent_labels(winners),
                 )
         elif surviving_humans:
             # Humans are the one cooperative side from the original rules:
@@ -755,16 +792,27 @@ class GameEngine:
             # were eliminated earlier. Agents remain individual competitors.
             winners = all_humans
             winner_type = "humans"
-            # Surviving agents with no claim left were all caught hunting a
-            # human, which is a different story than a clean sweep.
-            result = tr(
-                self.language,
-                "humans_win_hunted" if surviving_llms else "humans_win",
-            )
+            # Surviving agents with no claim left all lost it the same way,
+            # which is a different story than a clean sweep. Only those seats
+            # are named: a swept table has no agent left to point at.
+            if surviving_llms:
+                plural = "many" if len(surviving_llms) > 1 else "one"
+                result = tr(
+                    self.language,
+                    f"humans_win_{barred}_{plural}",
+                    agents=self._agent_labels(surviving_llms),
+                )
+            else:
+                result = tr(self.language, "humans_win")
         else:
             winners = []
             winner_type = "none"
-            result = tr(self.language, "no_winner")
+            plural = "many" if len(surviving_llms) > 1 else "one"
+            result = tr(
+                self.language,
+                f"no_winner_{barred}_{plural}",
+                agents=self._agent_labels(surviving_llms),
+            )
         roles = {s.id: s.kind for s in self.room.seats.values()}
         models = {s.id: s.model for s in self.room.seats.values() if s.model}
         agents = {

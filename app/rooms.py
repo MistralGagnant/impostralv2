@@ -47,9 +47,12 @@ class Seat:
     eliminated_round: Optional[int] = None
     # An AI seat whose decisive ballot eliminated a human. It keeps playing but
     # can no longer win. Server-private: naming it publicly would expose the
-    # seat as an AI. Hardcore rooms never set this: there, surviving is all an
-    # AI is asked to do.
+    # seat as an AI. Hardcore rooms never set this: there the same ballot is
+    # the objective, not the offence.
     disqualified: bool = False
+    # The same fact, recorded whatever the ruleset, because hardcore reads it
+    # the other way round: an agent only wins there if it sent a human home.
+    hunted_humans: bool = False
     # Anonymous browser identity. These values are server-private and never
     # included by `public`.
     player_id: str = ""

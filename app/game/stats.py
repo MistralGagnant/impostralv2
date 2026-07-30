@@ -42,7 +42,12 @@ def record_game(room, winners: list[str]) -> None:
                 "won": seat.id in winners,
                 "survived": seat.alive,
                 # Voted a human out, so it could not win whatever it survived.
+                # Standard rooms only: hardcore reads the same ballot as the
+                # objective, and records it under `hunted_humans` instead.
                 "disqualified": bool(getattr(seat, "disqualified", False)),
+                # Landed at least one human elimination. This is what a
+                # hardcore win is made of, and dead weight on a standard seat.
+                "hunted_humans": bool(getattr(seat, "hunted_humans", False)),
                 "eliminated_round": seat.eliminated_round,
                 "votes_total": seat.votes_total,
                 "votes_on_target": seat.votes_on_target,

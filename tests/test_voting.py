@@ -39,6 +39,7 @@ class StubSeat:
         self.votes_on_target = 0
         self.eliminated_round = None
         self.disqualified = False
+        self.hunted_humans = False
 
     def public(self, *, reveal_role: bool = False) -> dict:
         state = {
@@ -131,13 +132,86 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
         game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
         self.assertEqual(
             game_over["message"],
-            "Player B, Player C survived independently. No human remains.",
+            "Player B (mistral-large), Player C (mistral-small) survived "
+            "independently. No human remains at the table.",
         )
         self.assertEqual(game_over["reason"], "human_extinction")
         self.assertEqual(game_over["models"], {
             "Player B": "mistral-large-latest",
             "Player C": "mistral-small-latest",
         })
+
+    async def test_surviving_agents_that_lost_their_claim_are_still_named(
+        self,
+    ) -> None:
+        """A living agent that is not a winner needs the verdict to say so.
+
+        The roster reveals that it survived but never why it lost, since the
+        disqualification stays silent for the whole game.
+        """
+        human = StubSeat("Player A", "human")
+        human.alive = False
+        hunter = StubSeat("Player C", "llm", StubAgent(), "mistral-small-latest")
+        hunter.disqualified = True
+        room = StubRoom([
+            human,
+            StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest"),
+            hunter,
+        ])
+        engine = make_engine(room)
+
+        with patch("app.game.state_machine.stats.record_game"):
+            await engine._game_over()
+
+        game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
+        self.assertEqual(game_over["winners"], ["Player B"])
+        self.assertEqual(
+            game_over["message"],
+            "Player B (mistral-large), Player C (mistral-small) survived, but "
+            "Player B (mistral-large) was the only one that never voted a "
+            "human out. No human remains at the table.",
+        )
+
+    async def test_a_lone_surviving_agent_is_announced_in_the_singular(
+        self,
+    ) -> None:
+        """One winner must not be handed the plural sentence.
+
+        French agrees the verb, so a shared template read "Joueur A ont
+        survécu": the copy carries one wording per count in both languages.
+        """
+        human = StubSeat("Player A", "human")
+        human.alive = False
+        room = StubRoom([
+            human,
+            StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest"),
+        ])
+
+        for language, expected in (
+            (
+                "en",
+                "Player B (mistral-large) survived alone. No human remains at "
+                "the table.",
+            ),
+            (
+                "fr",
+                "Player B (mistral-large) a survécu seul. Il ne reste aucun "
+                "humain à table.",
+            ),
+        ):
+            with self.subTest(language=language):
+                room.messages.clear()
+                engine = make_engine(room)
+                engine.language = language
+
+                with patch("app.game.state_machine.stats.record_game"):
+                    await engine._game_over()
+
+                game_over = next(
+                    msg for msg in room.messages if msg["type"] == "game_over"
+                )
+                self.assertEqual(game_over["winners"], ["Player B"])
+                self.assertEqual(game_over["message"], expected)
 
     async def test_both_sides_win_the_final_human_ai_duel(self) -> None:
         eliminated_human = StubSeat("Player C", "human")
@@ -198,7 +272,7 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(room.game_over_payload, game_over)
         self.assertEqual(
             game_over["message"],
-            "The humans have won — every AI was eliminated.",
+            "The humans have won — every AI was unmasked.",
         )
 
     async def test_every_seat_votes_and_a_tie_triggers_a_restricted_runoff(self) -> None:
@@ -564,11 +638,14 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
             await engine._resolution_phase()
 
         self.assertFalse(hunter.disqualified)
+        # The same ballot is still recorded: hardcore needs it to award the win.
+        self.assertTrue(hunter.hunted_humans)
 
     async def test_a_hardcore_agent_wins_after_eliminating_humans(self) -> None:
         eliminated_human = StubSeat("Player A", "human")
         eliminated_human.alive = False
         hunter = StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest")
+        hunter.hunted_humans = True
         room = StubRoom([eliminated_human, hunter], mode="hardcore")
         engine = make_engine(room)
 
@@ -583,6 +660,7 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
     async def test_the_hardcore_final_duel_stays_a_shared_victory(self) -> None:
         human = StubSeat("Player A", "human")
         agent = StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest")
+        agent.hunted_humans = True
         room = StubRoom([human, agent], mode="hardcore")
         engine = make_engine(room)
 
@@ -592,6 +670,52 @@ class VotingTest(unittest.IsolatedAsyncioTestCase):
         game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
         self.assertEqual(game_over["winner"], "draw")
         self.assertEqual(game_over["winners"], ["Player A", "Player B"])
+
+    async def test_a_hardcore_agent_that_never_hunted_wins_nothing(self) -> None:
+        """Hardcore mirrors the standard penalty instead of dropping it.
+
+        Surviving is half the job there: an agent that hid all game without
+        ever putting a human out has no claim, exactly as a standard agent
+        that voted one out has none.
+        """
+        idle = StubSeat("Player C", "llm", StubAgent(), "mistral-small-latest")
+        hunter = StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest")
+        hunter.hunted_humans = True
+        eliminated_human = StubSeat("Player A", "human")
+        eliminated_human.alive = False
+        room = StubRoom(
+            [eliminated_human, hunter, idle], mode="hardcore"
+        )
+        engine = make_engine(room)
+
+        with patch("app.game.state_machine.stats.record_game"):
+            await engine._game_over()
+
+        game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
+        self.assertEqual(game_over["winner"], "agents")
+        self.assertEqual(game_over["winners"], ["Player B"])
+        self.assertEqual(
+            game_over["message"],
+            "Player B (mistral-large), Player C (mistral-small) survived, but "
+            "Player B (mistral-large) was the only one that managed to vote a "
+            "human out. No human remains at the table.",
+        )
+
+    async def test_a_hardcore_duel_against_an_idle_agent_goes_to_the_human(
+        self,
+    ) -> None:
+        """The shared duel needs an agent with a claim on both sides."""
+        idle = StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest")
+        room = StubRoom([StubSeat("Player A", "human"), idle], mode="hardcore")
+        engine = make_engine(room)
+
+        with patch("app.game.state_machine.stats.record_game"):
+            await engine._game_over()
+
+        game_over = next(msg for msg in room.messages if msg["type"] == "game_over")
+        self.assertEqual(game_over["winner"], "humans")
+        self.assertEqual(game_over["winners"], ["Player A"])
+        self.assertIn("never voted a human out", game_over["message"])
 
     async def test_a_disqualified_agent_loses_the_final_duel(self) -> None:
         hunter = StubSeat("Player B", "llm", StubAgent(), "mistral-large-latest")

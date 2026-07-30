@@ -4,9 +4,10 @@ A room picks one immutable mode at creation time, exactly like its language.
 
 - ``standard``: an AI that votes a human out loses the game. Agents are told to
   hunt each other only.
-- ``hardcore``: surviving is the only thing that counts for an AI, so hunting
-  the humans is both allowed and profitable. The disqualification penalty is
-  dropped and the agents are told so.
+- ``hardcore``: the mirror image. An AI only wins if it is still alive **and**
+  sent at least one human home, so hunting the humans is the objective rather
+  than the offence, and hiding quietly all game wins nothing. The agents are
+  told so.
 """
 from __future__ import annotations
 
@@ -20,7 +21,9 @@ SUPPORTED_MODES: Final = (DEFAULT_MODE, HARDCORE_MODE)
 # the results log, so a recorded game always says which rules it was played by.
 RULESET_IDS: Final = {
     DEFAULT_MODE: "independent-survival.v2",
-    HARDCORE_MODE: "hardcore-survival.v1",
+    # Bumped when hardcore stopped rewarding survival on its own: a recorded
+    # game must never be read under the wrong win condition.
+    HARDCORE_MODE: "hardcore-hunt.v2",
 }
 
 

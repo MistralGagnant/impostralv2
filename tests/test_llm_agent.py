@@ -289,10 +289,14 @@ class SortieAgentTest(unittest.TestCase):
             "most probably human", hardcore["properties"]["thinking"]["description"]
         )
 
-    def test_le_systeme_hardcore_recompense_la_survie_a_tout_prix(self) -> None:
+    def test_le_systeme_hardcore_exige_d_avoir_sorti_un_humain(self) -> None:
         prompt = LLMAgent("Player A", 0, hardcore=True)._system()
         self.assertIn("hardcore ruleset", prompt)
-        self.assertIn("voting a human out costs you nothing", prompt)
+        # Survivre ne suffit plus : la victoire hardcore réclame au moins une
+        # élimination humaine, sinon l'agent finit vivant et bredouille.
+        self.assertIn("sent at least one human home", prompt)
+        self.assertIn("Surviving is not enough here", prompt)
+        self.assertNotIn("voting a human out costs you nothing", prompt)
         self.assertIn("the reason to send it home", prompt)
         # L'agent doit savoir qu'il joue avec les autres IA, pas contre elles,
         # et que son bulletin appartient d'abord à la chasse aux humains.
