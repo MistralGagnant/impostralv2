@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260722-v32"
+ASSET_VERSION = "20260730-v34"
 
 
 class WebUiTest(unittest.TestCase):
@@ -180,6 +180,81 @@ class WebUiTest(unittest.TestCase):
         self.assertNotIn("msg.kind", answer_turn_handler)
         self.assertNotIn("msg.model", answer_turn_handler)
         self.assertIn('"ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"', app_js)
+
+    def test_speaking_bubble_shows_a_voice_level_meter(self) -> None:
+        css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
+        arena = (ROOT / "web" / "arena3d.js").read_text(encoding="utf-8")
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+
+        # The meter belongs to the seat holding the floor, and only while it does.
+        self.assertIn(".arena-tag.is-speaking .arena-tag-meter { display: flex; }", css)
+        self.assertIn(".arena-tag-meter {\n  display: none;", css)
+        # Every bar of the meter is mapped to a level, newest on the right.
+        for index in range(4):
+            self.assertIn(f"var(--vu-{index}, 0)", css)
+
+        # No caret: the growing line is signal enough that a seat is mid-sentence.
+        self.assertNotIn("is-typing", css)
+        self.assertNotIn("is-typing", arena)
+        self.assertNotIn("tag-caret", css)
+
+        # Bar heights are pushed by the reveal loop, one level per character, and
+        # written in a single assignment rather than twenty invalidations.
+        self.assertIn("setVoiceLevel,", arena)
+        self.assertIn("endSpeaking,", arena)
+        self.assertIn("record.dom.meter.style.cssText = css", arena)
+        self.assertIn("arena3d?.setVoiceLevel?.(state.seatId, state.level)", app_js)
+        self.assertIn("levels: voiceEnvelope(full)", app_js)
+
+        # A held speaking state outlives the old fixed flash: the pace of a line
+        # is only known once its clip plays, and it routinely runs past 2.5 s.
+        self.assertIn("record.speakingHeld || record.speakingUntil > now", arena)
+        self.assertIn("arena3d?.setSpeaking(seatId, 0, true)", app_js)
+        self.assertNotIn("flashSpeaking(msg.seat)", app_js)
+
+        # No analyser on the shared <audio> element: an AudioContext that the
+        # autoplay policy can suspend must never sit in front of the voices.
+        self.assertNotIn("createMediaElementSource", app_js)
+        self.assertNotIn("AnalyserNode", app_js)
+        self.assertNotIn("createAnalyser", app_js)
+
+    def test_arena_labels_dodge_the_hud_and_each_other(self) -> None:
+        arena = (ROOT / "web" / "arena3d.js").read_text(encoding="utf-8")
+
+        # The HUD paints above the label layer, so a bubble under a panel is lost,
+        # not dimmed. Every panel that can cover the arena is an obstacle.
+        for selector in (
+            ".hud-header",
+            ".mission-panel",
+            "#vote-panel",
+            "#input-panel",
+            ".question-frame",
+        ):
+            self.assertIn(f'"{selector}"', arena)
+        # Measured off the frame path: panels only move on resize, phase change
+        # and when a ballot opens.
+        self.assertIn("now - hudMeasuredAt < HUD_REFRESH_MS", arena)
+        # The ballot's space is kept clear even while it is hidden, or the bubbles
+        # on that side spread into it between rounds and jump aside at every vote.
+        self.assertIn('const HUD_RESERVED = { "#vote-panel": "right" }', arena)
+        # The seat holding the floor is placed first, so the bubble being read
+        # keeps its spot and the others yield; then nearest first, which is also
+        # the paint order. Both used to fall out of creation order.
+        self.assertIn("b.floor === a.floor ? b.depth - a.depth", arena)
+        self.assertIn("LABEL_BLEND_FLOOR", arena)
+        self.assertIn("label.style.zIndex", arena)
+        # A placed label becomes an obstacle for the seats behind it.
+        self.assertIn("blockers.push(", arena)
+        # Targets move in steps (a bubble growing a line, a neighbour taking the
+        # floor), so the label is eased towards them instead of cut to them.
+        self.assertIn("(targetEdge - previous.edge) * ease", arena)
+        self.assertIn("width 200ms", (ROOT / "web" / "style.css").read_text(encoding="utf-8"))
+        # Held by the edge nearest its side of the arena, so a bubble up against
+        # the live feed or the ballot widens away from it instead of sliding.
+        self.assertIn("const anchorRight = target.x >", arena)
+        self.assertIn("translate(-100%, -50%)", arena)
+        # The tail lands beside the head, not on it.
+        self.assertIn("item.headX + TAIL_AIM_OFFSET", arena)
 
     def test_seat_answers_are_not_line_clamped(self) -> None:
         css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")

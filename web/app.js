@@ -1216,15 +1216,52 @@
     return model ? model.replace(/-latest$/, "") : "";
   }
 
+  // A line lasts as long as its voice clip, which is measured while it plays and
+  // routinely runs past any fixed flash: the seat is marked speaking when the
+  // reveal starts and released when it lands (`beginSpeaking`/`endSpeaking`).
+  // `duration` is only the fallback for a seat with nothing to type.
+  const SPEAKING_FLASH_MS = 2500;
+  // The bubble keeps the floor for a beat after the last character rather than
+  // snapping shut on its own final letter.
+  const SPEAKING_LINGER_MS = 600;
+  let speakingSeat = "";
+
+  function seatCard(seatId) {
+    return document.querySelector(`.seat[data-seat="${CSS.escape(seatId)}"]`);
+  }
+
+  function beginSpeaking(seatId) {
+    if (speakingSeat && speakingSeat !== seatId) endSpeaking(speakingSeat, 0);
+    speakingSeat = seatId;
+    arena3d?.setSpeaking(seatId, 0, true);
+    document.querySelectorAll(".seat").forEach((el) =>
+      el.classList.toggle("speaking", el.dataset.seat === seatId)
+    );
+  }
+
+  function endSpeaking(seatId, linger = SPEAKING_LINGER_MS) {
+    if (!seatId) return;
+    if (speakingSeat === seatId) speakingSeat = "";
+    arena3d?.endSpeaking?.(seatId, linger);
+    if (linger <= 0) {
+      seatCard(seatId)?.classList.remove("speaking");
+      return;
+    }
+    setTimeout(() => {
+      // A later seat may already hold the floor; do not clear its highlight.
+      if (speakingSeat !== seatId) seatCard(seatId)?.classList.remove("speaking");
+    }, linger);
+  }
+
   function flashSpeaking(seatId) {
-    arena3d?.setSpeaking(seatId, 2500);
+    arena3d?.setSpeaking(seatId, SPEAKING_FLASH_MS);
     document.querySelectorAll(".seat").forEach((el) =>
       el.classList.toggle("speaking", el.dataset.seat === seatId)
     );
     setTimeout(() => {
-      const el = document.querySelector(`.seat[data-seat="${CSS.escape(seatId)}"]`);
+      const el = seatCard(seatId);
       if (el) el.classList.remove("speaking");
-    }, 2500);
+    }, SPEAKING_FLASH_MS);
   }
 
   // ------------------------------------------------------------------
@@ -1393,6 +1430,61 @@
     );
   }
 
+  // ------------------------------------------------------------------
+  // Voice level of the speaking bubble
+  // ------------------------------------------------------------------
+  // The meter in a speaking seat's bubble (`.arena-tag-meter`) is driven by the
+  // sentence, not by an analyser on the voice. Reading the real amplitude means
+  // routing the shared <audio> element through an AudioContext, permanently, and
+  // that context can be suspended by autoplay policy or never created at all
+  // when the player has the sound off: it would put the most fragile subsystem
+  // of the game behind a graph that can silence it (cf. the voice gate bugs).
+  //
+  // The line is already paced on its clip, so a level sampled at the character
+  // being revealed lands on the voice anyway — and it degrades gracefully to the
+  // seats that have no voice at all.
+  const VOWELS = "aeiouyàâäéèêëíìïîóòöôúùüûœæ";
+  const PUNCTUATION = ".,;:!?…«»\"'’-—()[]";
+  // How fast the meter chases the character it is on: high enough to show a
+  // word's attack, low enough that consecutive letters do not strobe.
+  const VU_SMOOTHING = 0.55;
+
+  // One level per character, in [0, 1]. Deterministic: the same sentence always
+  // moves the meter the same way.
+  function voiceEnvelope(text) {
+    const levels = new Array(text.length);
+    let intoWord = 0;
+    for (let index = 0; index < text.length; index += 1) {
+      const ch = text[index].toLowerCase();
+      if (ch === " " || ch === "\n" || ch === "\t") {
+        levels[index] = 0.1;
+        intoWord = 0;
+      } else if (PUNCTUATION.includes(ch)) {
+        levels[index] = 0.04;   // a pause: the meter drops, as the voice does
+        intoWord = 0;
+      } else {
+        intoWord += 1;
+        // A spoken word opens on its attack and carries on its vowels. The
+        // jitter keeps a run of similar letters from flatlining.
+        const attack = intoWord <= 2 ? 0.2 : 0;
+        const jitter = ((index * 37) % 11) / 60;
+        levels[index] = Math.min(1, (VOWELS.includes(ch) ? 0.7 : 0.4) + attack + jitter);
+      }
+    }
+    return levels;
+  }
+
+  // The reveal can cross several characters between two frames on a fast line:
+  // take the loudest of them so a word onset is never skipped.
+  function pushVoiceLevel(state, from, to) {
+    let peak = 0;
+    for (let index = Math.max(0, from); index < to; index += 1) {
+      peak = Math.max(peak, state.levels[index] || 0);
+    }
+    state.level += (peak - state.level) * VU_SMOOTHING;
+    arena3d?.setVoiceLevel?.(state.seatId, state.level);
+  }
+
   function reducedMotion() {
     try {
       return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1439,6 +1531,7 @@
     typing = null;
     if (state.raf) cancelAnimationFrame(state.raf);
     paintUtterance(state.seatId, state.full, state.feedNode);
+    endSpeaking(state.seatId);
   }
 
   // Drop the reveal without painting it: used where the answers themselves are
@@ -1451,6 +1544,7 @@
     if (arena3d?.setSeatAnswer) {
       arena3d.setSeatAnswer(state.seatId, latestUtterances.get(state.seatId) || "");
     }
+    endSpeaking(state.seatId, 0);
   }
 
   // Fraction of the sentence that should be visible right now.
@@ -1505,6 +1599,8 @@
   function typeUtterance(seatId, full, feedNode, audioUrl) {
     finishTyping();
     if (!full || reducedMotion() || typeof requestAnimationFrame !== "function") {
+      // Nothing to pace the seat on: a plain flash, and no level meter to feed.
+      flashSpeaking(seatId);
       paintUtterance(seatId, full, feedNode);
       return;
     }
@@ -1514,19 +1610,25 @@
       start: performance.now(),
       paceMs: 0,
       raf: 0,
+      levels: voiceEnvelope(full),
+      level: 0,
     };
     typing = state;
+    beginSpeaking(seatId);
     const step = () => {
       if (typing !== state) return;
       const ratio = Math.min(1, typedRatio(state, performance.now()));
       const count = Math.round(full.length * ratio);
       const done = count >= full.length;
       if (count !== state.shown) {
+        const from = state.shown;
         state.shown = count;
         paintUtterance(seatId, full.slice(0, count), feedNode);
+        pushVoiceLevel(state, from, count);
       }
       if (done) {
         typing = null;
+        endSpeaking(seatId);
         return;
       }
       state.raf = requestAnimationFrame(step);
@@ -1535,7 +1637,8 @@
   }
 
   function onUtterance(msg) {
-    flashSpeaking(msg.seat);
+    // The seat is marked speaking by the reveal itself (`typeUtterance`), which
+    // is the only place that knows how long the line will take.
     const spoken = msg.text || t("answer.silence");
     // Measured once, before the line starts growing: reading the scroll box on
     // every frame would force a layout next to a 60 fps canvas.

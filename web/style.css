@@ -10,6 +10,13 @@
   --orange: #ff8205;
   --orange-bright: #ffaf00;
   --orange-dim: rgba(255, 130, 5, 0.35);
+  /* Accent of the seat holding the floor, matching `COLORS.yellow` in
+     web/arena3d.js so the 3D ring and its screen label agree. It was used by a
+     dozen arena rules before it existed: an unresolvable var() is invalid at
+     computed-value time, so every one of them silently fell back (borders and
+     the bubble tail to `currentColor`, i.e. cream), and the speaking state was
+     drawn white instead of yellow. */
+  --yellow: #ffaf01;
   --red: #e10500;
   --gold: #ffd800;
   --text: #f4efe6;
@@ -2095,20 +2102,30 @@ body[data-screen="game"] .arena-viz {
   pointer-events: none;
 }
 .arena-viz.webgl-ready .arena-labels { display: block; }
+/* The whole card is sized off its own font-size, and everything inside it is in
+   `em`. That one declaration is the only thing that reacts to the viewport, so
+   the card scales as a block and a given answer wraps onto the same number of
+   lines at every resolution. Width and type used to carry separate `clamp()`
+   ranges, which plateaued at different viewport widths: the ratio between them
+   drifted, and the text relaid itself out on the way. */
 .arena-tag {
   position: absolute;
   top: 0;
   left: 0;
   z-index: 4;
-  width: clamp(132px, 13.5vw, 208px);
-  padding: 7px 10px 8px;
+  width: 18em;
+  padding: 0.61em 0.87em 0.7em;
   border: 1px solid rgba(255, 130, 4, 0.42);
   border-left: 3px solid var(--orange);
   background: rgba(8, 7, 6, 0.92);
   box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.28);
   color: var(--text);
+  font-size: clamp(8px, 0.72vw, 11.5px);
   opacity: 0.9;
-  transition: border-color 180ms, opacity 180ms, filter 280ms;
+  /* Width and font-size are in the list because a seat taking the floor grows
+     its bubble by half again: cut, that reads as the bubble jumping. */
+  transition: border-color 180ms, opacity 180ms, filter 280ms, width 200ms,
+    font-size 200ms;
   will-change: transform;
 }
 .arena-tag[hidden] { display: none; }
@@ -2117,27 +2134,68 @@ body[data-screen="game"] .arena-viz {
   min-width: 0;
   align-items: baseline;
   justify-content: space-between;
-  gap: 7px;
+  gap: 0.6em;
 }
 .arena-tag-head strong {
   overflow: hidden;
-  font-size: clamp(0.56rem, 0.72vw, 0.7rem);
+  font-size: 1em;
   letter-spacing: 0.04em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Level meter of the seat that holds the floor, beside its name. Hidden until it
+   speaks: the head is tight, and a resting meter would read as a seat about to
+   talk. Heights come from `--vu-0` (newest, on the right) to `--vu-3`, written
+   per revealed character by the reveal loop, so the bars follow the sentence
+   being spoken instead of looping on their own. */
+.arena-tag-meter {
+  display: none;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  align-self: center;
+  gap: 0.26em;
+  /* Sized against the line it sits beside, like everything else in the card. */
+  height: 1.22em;
+  margin-right: auto;
+  color: var(--yellow);
+}
+.arena-tag.is-speaking .arena-tag-meter { display: flex; }
+.arena-tag-meter i {
+  display: block;
+  width: 0.26em;
+  height: 100%;
+  background: currentColor;
+  image-rendering: pixelated;
+  /* Smooths the step between two characters without lagging behind the voice. */
+  transition: transform 80ms linear;
+  /* The floor is deliberately not zero: on a pause the meter has to still read
+     as a meter, not as four dots. */
+  transform: scaleY(calc(0.2 + 0.8 * var(--vu, 0)));
+  transform-origin: bottom;
+}
+.arena-tag.is-speaking .arena-tag-meter i:nth-child(1) { --vu: var(--vu-3, 0); }
+.arena-tag.is-speaking .arena-tag-meter i:nth-child(2) { --vu: var(--vu-2, 0); }
+.arena-tag.is-speaking .arena-tag-meter i:nth-child(3) { --vu: var(--vu-1, 0); }
+.arena-tag.is-speaking .arena-tag-meter i:nth-child(4) { --vu: var(--vu-0, 0); }
+@media (prefers-reduced-motion: reduce) {
+  /* No reveal loop under reduced motion, so no levels arrive: show a static
+     meter rather than four collapsed bars. */
+  .arena-tag.is-speaking .arena-tag-meter i { transform: scaleY(0.45); }
+  .arena-tag.is-speaking .arena-tag-meter i:nth-child(2) { transform: scaleY(0.8); }
+  .arena-tag.is-speaking .arena-tag-meter i:nth-child(3) { transform: scaleY(0.6); }
+}
 .arena-tag-role {
   flex: 0 0 auto;
   color: var(--faint);
-  font-size: 0.43rem;
+  font-size: 0.6em;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .arena-tag-answer {
   display: none;
-  margin: 5px 0 0;
+  margin: 0.43em 0 0;
   color: #f4cda2;
-  font-size: clamp(0.56rem, 0.74vw, 0.72rem);
+  font-size: 1em;
   line-height: 1.36;
   overflow-wrap: anywhere;
 }
@@ -2146,9 +2204,9 @@ body[data-screen="game"] .arena-viz {
 .arena-tag.has-answer .arena-tag-answer { display: block; }
 .arena-tag-votes {
   display: none;
-  margin-top: 5px;
+  margin-top: 0.43em;
   color: var(--orange-bright);
-  font-size: 0.48rem;
+  font-size: 0.67em;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2156,7 +2214,7 @@ body[data-screen="game"] .arena-viz {
 .arena-tag.has-votes .arena-tag-votes { display: block; }
 .arena-tag.is-you { border-color: rgba(255, 175, 1, 0.8); }
 .arena-tag.is-you .arena-tag-head strong::after {
-  margin-left: 5px;
+  margin-left: 0.43em;
   color: var(--yellow);
   content: var(--arena-you-label);
   font-size: 0.68em;
@@ -2175,30 +2233,46 @@ body[data-screen="game"] .arena-viz {
   box-shadow: 0 0 0 1px rgba(255, 175, 1, 0.4), 7px 7px 0 rgba(255, 175, 1, 0.2);
   opacity: 1;
 }
-/* The seat that is currently speaking or taking its turn wins the foreground:
-   it rises above neighbouring tags and shows its full line as a speech bubble. */
+/* Starting point only: `updateLabels()` in web/arena3d.js writes an inline
+   z-index every frame, ordering the tags front to back and lifting whichever
+   holds the floor. This still covers the frames before the first placement. */
 .arena-tag.is-answering,
 .arena-tag.is-speaking { z-index: 8; }
-/* The seat holding the floor gets a wider bubble: same full text as the others,
-   laid out on fewer lines and read first. */
+/* The seat holding the floor gets a bigger card: same full text as the others,
+   larger type on fewer lines, read first. Type and width grow together — one
+   font-size for the card, a width in `em` of it — so the line breaks of a given
+   answer do not depend on the viewport. */
 .arena-tag.is-answering,
-.arena-tag.is-speaking { width: clamp(210px, 24vw, 330px); }
-.arena-tag.is-answering .arena-tag-answer,
-.arena-tag.is-speaking .arena-tag-answer {
-  color: #fff4e2;
-  font-size: clamp(0.64rem, 0.9vw, 0.82rem);
+.arena-tag.is-speaking {
+  width: 25.15em;
+  font-size: clamp(10.2px, 0.9vw, 13.1px);
 }
+.arena-tag.is-answering .arena-tag-answer,
+.arena-tag.is-speaking .arena-tag-answer { color: #fff4e2; }
+/* Tail of the speech bubble. `--tail-x` is written every frame by
+   `updateLabels()` in web/arena3d.js so the tip stays over the head of the seat
+   that is speaking, wherever the bubble had to be placed; the 18px fallback is
+   only for a frame drawn before the first placement. */
 .arena-tag.is-answering::after,
 .arena-tag.is-speaking::after {
   content: "";
   position: absolute;
-  left: 18px;
+  left: var(--tail-x, 18px);
   bottom: -8px;
   width: 0;
   height: 0;
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
   border-top: 8px solid var(--yellow);
+}
+/* The seat ended up above its own bubble: the tail moves to the top edge and
+   turns over, rather than pointing away from the character. */
+.arena-tag.tail-up.is-answering::after,
+.arena-tag.tail-up.is-speaking::after {
+  top: -8px;
+  bottom: auto;
+  border-top: 0;
+  border-bottom: 8px solid var(--yellow);
 }
 .arena-tag.is-selected {
   border-color: var(--red);
@@ -2240,7 +2314,13 @@ body[data-screen="game"] .mission-panel {
   backdrop-filter: blur(12px);
 }
 body[data-screen="game"] .question-frame {
-  top: 78px;
+  /* Sits inside the header band, between the logo and the nav: measured, the
+     nav never starts before x=881 while the frame never reaches past x=820, so
+     the row is free. Every pixel taken back here is one the seat bubbles get,
+     since the frame is absorbed into the margin they are placed inside
+     (cf. `hudGeometry` in web/arena3d.js). It stays under the elimination veil
+     (z-index 20), so the header gradient still passes over its top edge. */
+  top: 12px;
   left: 50%;
   z-index: 9;
   width: min(560px, calc(100% - 560px));

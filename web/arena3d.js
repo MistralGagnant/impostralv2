@@ -45,6 +45,12 @@ const PHASE_COLORS = {
   game_over: COLORS.yellow,
 };
 
+// Bars of the level meter shown in the head of a speaking bubble, beside the
+// name. The caller pushes one level per revealed character (`setVoiceLevel`) and
+// the meter keeps the last few, newest on the right, so the bars follow the
+// sentence being spoken instead of looping on their own.
+const VU_BARS = 4;
+
 function tracked(set, value) {
   set.add(value);
   return value;
@@ -65,6 +71,7 @@ export function createArena({ canvas, root, labels }) {
   const pointerTarget = new THREE.Vector2();
   const worldPoint = new THREE.Vector3();
   const cameraPoint = new THREE.Vector3();
+  const headPoint = new THREE.Vector3();
   const baseSceneColor = new THREE.Color(COLORS.ink);
   const baseKeyColor = new THREE.Color(0xffd2a1);
   const baseSkyColor = new THREE.Color(0xffd9a3);
@@ -417,16 +424,23 @@ export function createArena({ canvas, root, labels }) {
     const head = document.createElement("div");
     head.className = "arena-tag-head";
     const name = document.createElement("strong");
+    const meter = document.createElement("span");
+    meter.className = "arena-tag-meter";
+    // Decoration only: the line under it already carries the words.
+    meter.setAttribute("aria-hidden", "true");
+    for (let index = 0; index < VU_BARS; index += 1) {
+      meter.appendChild(document.createElement("i"));
+    }
     const role = document.createElement("span");
     role.className = "arena-tag-role";
     const answer = document.createElement("p");
     answer.className = "arena-tag-answer";
     const votes = document.createElement("span");
     votes.className = "arena-tag-votes";
-    head.append(name, role);
+    head.append(name, meter, role);
     label.append(head, answer, votes);
     labels.appendChild(label);
-    return { label, name, role, answer, votes };
+    return { label, name, meter, role, answer, votes };
   }
 
   function createSeat(state, index) {
@@ -492,6 +506,11 @@ export function createArena({ canvas, root, labels }) {
       anchor,
       dom,
       speakingUntil: 0,
+      speakingHeld: false,
+      voiceHistory: new Array(VU_BARS).fill(0),
+      // Where its label is drawn right now, so a placement that jumps (a bubble
+      // widening, a neighbour taking the floor) is eased into instead of cut to.
+      labelPos: null,
       eliminatedAt: 0,
       eliminationEffectPlayed: false,
       resultAura: null,
@@ -819,15 +838,58 @@ export function createArena({ canvas, root, labels }) {
     coreHalo.material.emissive.setHex(color);
     coreLight.color.setHex(color);
     root.dataset.arenaPhase = phase;
+    invalidateHud();   // the question frame and the answer box follow the phase
     requestRender();
   }
 
-  function setSpeaking(id, duration = 2500) {
+  // `hold` keeps the seat speaking until `endSpeaking()`, for callers that do
+  // not know the duration up front: a line is typed at the pace of its voice
+  // clip, and that pace is only measured once the clip actually plays. A fixed
+  // flash used to expire mid-sentence, dropping the bubble back to its resting
+  // size while the words were still arriving.
+  function setSpeaking(id, duration = 2500, hold = false) {
     const record = seatObjects.get(id);
     if (!record) return;
-    record.speakingUntil = performance.now() + duration;
+    record.speakingHeld = Boolean(hold);
+    record.speakingUntil = performance.now() + (hold ? 0 : duration);
     record.dom.label.classList.add("is-speaking");
     requestRender();
+  }
+
+  // Release a held seat. `linger` lets the bubble keep the floor for a beat
+  // after the last character, so the reveal does not snap shut on its own
+  // final letter.
+  function endSpeaking(id, linger = 0) {
+    const record = seatObjects.get(id);
+    if (!record) return;
+    record.speakingHeld = false;
+    record.speakingUntil = performance.now() + Math.max(0, linger);
+    setVoiceLevel(id, 0);
+    // The class is normally taken off in `update()`; do it here too so a seat
+    // still clears under `prefers-reduced-motion`, where the loop does not run.
+    if (linger <= 0) record.dom.label.classList.remove("is-speaking");
+    requestRender();
+  }
+
+  // One level per revealed character, pushed by the reveal loop. Turned into bar
+  // heights by CSS: no WebGL frame is needed for the strip to move, so this stays
+  // free of `requestRender()` even though it runs at speech rate.
+  function setVoiceLevel(id, level = 0) {
+    const record = seatObjects.get(id);
+    if (!record) return;
+    const value = Math.min(1, Math.max(0, Number(level) || 0));
+    const history = record.voiceHistory;
+    history.pop();
+    history.unshift(value);   // index 0 is the newest level
+    // One assignment for the whole meter rather than a `setProperty` per bar.
+    // The variables live on the meter and not on the label, whose own inline
+    // transform is rewritten every frame by `updateLabels()` and would be wiped
+    // by a `cssText` write.
+    let css = "";
+    for (let index = 0; index < history.length; index += 1) {
+      css += `--vu-${index}:${history[index].toFixed(2)};`;
+    }
+    record.dom.meter.style.cssText = css;
   }
 
   function setAnswerTurn(id = "") {
@@ -845,6 +907,8 @@ export function createArena({ canvas, root, labels }) {
     for (const record of seatObjects.values()) {
       record.dom.label.classList.toggle("is-vote-target", voteTargets.has(record.id));
     }
+    // Called on both sides of a ballot, which is the panel that moves most.
+    invalidateHud();
     requestRender();
   }
 
@@ -1014,14 +1078,195 @@ export function createArena({ canvas, root, labels }) {
   }
 
   const LABEL_MARGIN = 6;
+  // The HUD paints above the label layer (`.arena-labels` is z-index 5, the
+  // panels 9 to 30), so a bubble that lands under one is not dimmed but lost:
+  // that is how an answer ended up with its name hidden behind the question
+  // frame and another half-swallowed by the live feed. They are obstacles the
+  // labels dodge, exactly like the labels dodge each other.
+  const HUD_SELECTORS = [
+    ".hud-header",
+    ".mission-panel",
+    "#vote-panel",
+    "#input-panel",
+    ".question-frame",
+  ];
+  // Panels whose space is kept clear even while they are hidden, mapped to the
+  // edge they come back on. The ballot is 252px of panel that opens on the right
+  // at every single vote: measured only when visible, the bubbles of the seats
+  // over there spread into that space between rounds and then had to jump a
+  // quarter of the screen aside to give it back. `getComputedStyle` still reports
+  // the specified width and offset of a `display: none` element, so reserving it
+  // costs no layout and keeps the panel's own CSS as the single source of truth.
+  const HUD_RESERVED = { "#vote-panel": "right" };
+  // Panels move on resize, on phase change and when a ballot opens, none of
+  // which happens per frame: measuring them twice a second is enough, and keeps
+  // five `getBoundingClientRect` out of the frame budget.
+  const HUD_REFRESH_MS = 250;
+  // A panel within this much of an arena edge is treated as hugging it.
+  const HUD_EDGE_TOLERANCE = 28;
+  let hudLayout = { insets: { top: 0, right: 0, bottom: 0, left: 0 }, boxes: [] };
+  let hudMeasuredAt = -Infinity;
 
-  function updateLabels() {
+  // The periodic refresh alone left a window: a ballot opening 252px of panel
+  // took up to a full refresh interval to be noticed, and the labels underneath
+  // it were placed against a HUD that no longer existed. Every caller that can
+  // move a panel drops the measurement instead of waiting for the timer.
+  function invalidateHud() {
+    hudMeasuredAt = -Infinity;
+  }
+
+  // A panel against an arena edge — the header, the live feed, the ballot, the
+  // answer box — becomes a margin the labels simply live inside. So does one
+  // sitting against a margin already claimed: the question frame hangs a dozen
+  // pixels under the header, and letting it extend that margin is far steadier
+  // than making six labels walk around an island in the middle of the top of the
+  // arena. Whatever is left floating stays an obstacle for `dodge()`.
+  function hudGeometry(now, width, height) {
+    if (now - hudMeasuredAt < HUD_REFRESH_MS) return hudLayout;
+    hudMeasuredAt = now;
+    const base = root.getBoundingClientRect();
+    const insets = { top: 0, right: 0, bottom: 0, left: 0 };
+    const pending = [];
+    for (const selector of HUD_SELECTORS) {
+      const element = document.querySelector(selector);
+      if (!element) continue;
+      const rect = element.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        // Hidden. Keep its space if it is one of the panels that comes back.
+        const edge = HUD_RESERVED[selector];
+        if (edge) {
+          const style = getComputedStyle(element);
+          const reserve = parseFloat(style.width) + parseFloat(style[edge]);
+          if (Number.isFinite(reserve)) insets[edge] = Math.max(insets[edge], reserve);
+        }
+        continue;
+      }
+      pending.push({
+        left: rect.left - base.left,
+        right: rect.right - base.left,
+        top: rect.top - base.top,
+        bottom: rect.bottom - base.top,
+      });
+    }
+    // Repeat until nothing more is absorbed: one panel joining a margin can
+    // bring the next one within reach of it.
+    let absorbed = true;
+    while (absorbed) {
+      absorbed = false;
+      for (let index = pending.length - 1; index >= 0; index -= 1) {
+        const box = pending[index];
+        if (box.top <= insets.top + HUD_EDGE_TOLERANCE && box.bottom < height * 0.5) {
+          insets.top = Math.max(insets.top, box.bottom);
+        } else if (
+          box.bottom >= height - insets.bottom - HUD_EDGE_TOLERANCE
+          && box.top > height * 0.5
+        ) {
+          insets.bottom = Math.max(insets.bottom, height - box.top);
+        } else if (box.left <= insets.left + HUD_EDGE_TOLERANCE && box.right < width * 0.5) {
+          insets.left = Math.max(insets.left, box.right);
+        } else if (
+          box.right >= width - insets.right - HUD_EDGE_TOLERANCE
+          && box.left > width * 0.5
+        ) {
+          insets.right = Math.max(insets.right, width - box.left);
+        } else {
+          continue;
+        }
+        pending.splice(index, 1);
+        absorbed = true;
+      }
+    }
+    hudLayout = { insets, boxes: pending };
+    return hudLayout;
+  }
+
+  function overlaps(x, y, halfW, halfH, box) {
+    return x - halfW < box.right
+      && x + halfW > box.left
+      && y - halfH < box.bottom
+      && y + halfH > box.top;
+  }
+
+  // How much of the label is buried, in square pixels. Used to keep the best
+  // position found rather than the last one tried: on a cramped viewport the
+  // walk below can bounce between two blockers, and the position it happens to
+  // stop on is not necessarily the least bad one.
+  function buriedArea(x, y, halfW, halfH, blockers) {
+    let total = 0;
+    for (const box of blockers) {
+      if (!overlaps(x, y, halfW, halfH, box)) continue;
+      total += (Math.min(x + halfW, box.right) - Math.max(x - halfW, box.left))
+        * (Math.min(y + halfH, box.bottom) - Math.max(y - halfH, box.top));
+    }
+    return total;
+  }
+
+  const DODGE_ATTEMPTS = 12;
+  // World units below the label anchor where the character's head is: what the
+  // bubble tail has to point at. The anchor itself sits just above the head, so
+  // aiming at it would leave the tail pointing at nothing.
+  const TAIL_TARGET_DROP = 0.45;
+  // Half the tail's width, and how far its tip stays from a corner of the bubble.
+  const TAIL_HALF_WIDTH = 8;
+  const TAIL_EDGE_INSET = 13;
+  // Deliberate offset to the right of the head rather than dead centre on it:
+  // a tail landing exactly on the character reads as a diagram, one landing
+  // well beside it reads as a comic panel. Still clamped away from the corner
+  // by `TAIL_EDGE_INSET`, so a narrow bubble keeps its tail on its own edge.
+  const TAIL_AIM_OFFSET = 48;
+  // Per-frame easing of a label towards its computed spot: high enough to keep up
+  // with the drifting camera, low enough to turn a step into a slide.
+  const LABEL_BLEND = 0.07;
+  // The bubble holding the floor is the one being read, so it moves slower still.
+  const LABEL_BLEND_FLOOR = 0.04;
+
+  // Walk the label out of whatever it landed on: vertically first, since the
+  // seats are spread horizontally and a sideways nudge would sooner cover a
+  // neighbour, then sideways if there is no vertical room left.
+  function dodge(item, blockers, bounds) {
+    const { halfW, halfH } = item;
+    let x = Math.min(Math.max(item.x, bounds.minX), bounds.maxX);
+    let y = Math.min(Math.max(item.y, bounds.minY), bounds.maxY);
+    let best = { x, y, buried: buriedArea(x, y, halfW, halfH, blockers) };
+    for (let attempt = 0; attempt < DODGE_ATTEMPTS && best.buried > 0; attempt += 1) {
+      const hit = blockers.find((box) => overlaps(x, y, halfW, halfH, box));
+      if (!hit) break;
+      const up = hit.top - halfH - LABEL_MARGIN - y;
+      const down = hit.bottom + halfH + LABEL_MARGIN - y;
+      const upFits = y + up >= bounds.minY;
+      const downFits = y + down <= bounds.maxY;
+      if (upFits && (!downFits || -up <= down)) {
+        y += up;
+      } else if (downFits) {
+        y += down;
+      } else {
+        const left = hit.left - halfW - LABEL_MARGIN - x;
+        const right = hit.right + halfW + LABEL_MARGIN - x;
+        const leftFits = x + left >= bounds.minX;
+        const rightFits = x + right <= bounds.maxX;
+        if (leftFits && (!rightFits || -left <= right)) x += left;
+        else if (rightFits) x += right;
+        else break;   // nowhere left to go: keep the least buried spot found
+      }
+      const buried = buriedArea(x, y, halfW, halfH, blockers);
+      if (buried < best.buried) best = { x, y, buried };
+    }
+    return best;
+  }
+
+  const placements = [];
+
+  function updateLabels(now) {
     const width = root.clientWidth;
     const height = root.clientHeight;
     if (!width || !height) return;
+    placements.length = 0;
     for (const record of seatObjects.values()) {
       record.anchor.getWorldPosition(worldPoint);
       cameraPoint.copy(worldPoint).applyMatrix4(camera.matrixWorldInverse);
+      headPoint.copy(worldPoint);
+      headPoint.y -= TAIL_TARGET_DROP;
+      headPoint.project(camera);
       worldPoint.project(camera);
       const offscreen = cameraPoint.z >= 0
         || worldPoint.z < -1
@@ -1029,19 +1274,114 @@ export function createArena({ canvas, root, labels }) {
         || Math.abs(worldPoint.x) > 1.15
         || Math.abs(worldPoint.y) > 1.15;
       record.dom.label.hidden = offscreen;
-      if (offscreen) continue;
-      let x = (worldPoint.x * 0.5 + 0.5) * width;
-      let y = (-worldPoint.y * 0.5 + 0.5) * height;
-      // Keep the whole tag inside the arena, which clips its overflow: a seat
-      // near an edge would otherwise have its answer cut off by the container
-      // rather than by any style rule. Tags are centred on their anchor, so the
-      // clamp works on half-extents.
-      const halfW = record.dom.label.offsetWidth / 2;
-      const halfH = record.dom.label.offsetHeight / 2;
-      x = Math.min(Math.max(x, halfW + LABEL_MARGIN), width - halfW - LABEL_MARGIN);
-      y = Math.min(Math.max(y, halfH + LABEL_MARGIN), height - halfH - LABEL_MARGIN);
-      record.dom.label.style.transform =
-        `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+      if (offscreen) {
+        record.labelPos = null;   // reappears at its own spot, not from its last one
+        continue;
+      }
+      placements.push({
+        record,
+        x: (worldPoint.x * 0.5 + 0.5) * width,
+        y: (-worldPoint.y * 0.5 + 0.5) * height,
+        // Tags are centred on their anchor, so everything below works on
+        // half-extents.
+        halfW: record.dom.label.offsetWidth / 2,
+        halfH: record.dom.label.offsetHeight / 2,
+        headX: (headPoint.x * 0.5 + 0.5) * width,
+        headY: (-headPoint.y * 0.5 + 0.5) * height,
+        depth: cameraPoint.z,   // negative in front of the camera, so nearer is greater
+        floor: record.dom.label.classList.contains("is-speaking")
+          || record.dom.label.classList.contains("is-answering"),
+      });
+    }
+    // The seat holding the floor is placed first: it is the one being read, so it
+    // keeps the spot its pod earned and the others yield to it, instead of being
+    // shoved aside by whichever neighbour happened to be nearer the camera. Then
+    // nearest first, which is also the paint order — that used to fall out of
+    // creation order, so a seat at the back of the table could cover a front one.
+    placements.sort((a, b) => (b.floor === a.floor ? b.depth - a.depth : (b.floor ? 1 : -1)));
+
+    const { insets, boxes } = hudGeometry(now, width, height);
+    const blockers = boxes.slice();
+    // Reduced motion snaps, as it does everywhere else in the arena.
+    const blend = reducedMotion.matches ? 1 : LABEL_BLEND;
+    let rank = placements.length;
+    for (const item of placements) {
+      const bounds = {
+        minX: insets.left + item.halfW + LABEL_MARGIN,
+        maxX: width - insets.right - item.halfW - LABEL_MARGIN,
+        minY: insets.top + item.halfH + LABEL_MARGIN,
+        // Keep the whole tag inside the arena, which clips its overflow: a seat
+        // near an edge would otherwise have its answer cut off by the container
+        // rather than by any style rule.
+        maxY: height - insets.bottom - item.halfH - LABEL_MARGIN,
+      };
+      // A label wider or taller than what the HUD leaves would invert its own
+      // bounds; centre it in the gap instead of clamping to a crossed range.
+      if (bounds.minX > bounds.maxX) {
+        bounds.minX = bounds.maxX = (bounds.minX + bounds.maxX) / 2;
+      }
+      if (bounds.minY > bounds.maxY) {
+        bounds.minY = bounds.maxY = (bounds.minY + bounds.maxY) / 2;
+      }
+      const target = dodge(item, blockers, bounds);
+      // A bubble is held by the vertical edge nearest the side of the arena it
+      // sits on, not by its centre. It matters when it is up against a margin:
+      // there the clamp puts its centre at `insets.left + halfW + margin`, so the
+      // edge lands on the same pixel whatever the width, and a seat taking the
+      // floor grows its bubble *away* from the live feed instead of shoving the
+      // whole thing sideways to make room. A bubble with room to spare is not
+      // clamped, so it still widens both ways around its pod.
+      const anchorRight = target.x > (insets.left + width - insets.right) / 2;
+      const side = anchorRight ? 1 : -1;
+      const targetEdge = target.x + side * item.halfW;
+      let previous = item.record.labelPos;
+      if (previous && previous.right !== anchorRight) {
+        // Same box described from its other edge: keep the switch continuous.
+        previous = { edge: previous.edge + side * 2 * item.halfW, y: previous.y };
+      }
+      // Ease into the target rather than cut to it. The target moves in steps,
+      // not smoothly: a bubble grows a line as its answer is typed, and every
+      // neighbour is re-placed around the new box. Applied raw, that reads as a
+      // teleport.
+      // `blend` is 1 under reduced motion, where nothing eases at all.
+      const ease = blend >= 1 ? 1 : (item.floor ? LABEL_BLEND_FLOOR : blend);
+      const edge = previous
+        ? previous.edge + (targetEdge - previous.edge) * ease
+        : targetEdge;
+      const y = previous ? previous.y + (target.y - previous.y) * ease : target.y;
+      item.record.labelPos = { edge, y, right: anchorRight };
+      const x = edge - side * item.halfW;   // centre, for the tail and the blockers
+      const label = item.record.dom.label;
+      label.style.transform = anchorRight
+        ? `translate3d(${edge}px, ${y}px, 0) translate(-100%, -50%)`
+        : `translate3d(${edge}px, ${y}px, 0) translate(0, -50%)`;
+      // The seat holding the floor wins the foreground outright; the rest are
+      // ordered front to back.
+      label.style.zIndex = String((item.floor ? 40 : 0) + rank);
+      // Aim the tail at the character. It used to be pinned near the left corner
+      // of the bubble, which pointed at whatever happened to be there once the
+      // bubble had been clamped or dodged away from its pod.
+      if (item.floor) {
+        const towards = Math.min(
+          Math.max(item.headX + TAIL_AIM_OFFSET - x + item.halfW, TAIL_EDGE_INSET),
+          2 * item.halfW - TAIL_EDGE_INSET,
+        );
+        label.style.setProperty("--tail-x", `${Math.round(towards - TAIL_HALF_WIDTH)}px`);
+        // Head above the bubble: it was pushed below its own pod, so the tail
+        // belongs on the top edge, turned over.
+        label.classList.toggle("tail-up", item.headY < y - item.halfH * 0.5);
+      } else if (label.classList.contains("tail-up")) {
+        label.classList.remove("tail-up");
+      }
+      rank -= 1;
+      // The box the seats behind it dodge is where the label *is*, not where it
+      // is heading, or they would move before it got out of the way.
+      blockers.push({
+        left: x - item.halfW,
+        right: x + item.halfW,
+        top: y - item.halfH,
+        bottom: y + item.halfH,
+      });
     }
   }
 
@@ -1087,7 +1427,7 @@ export function createArena({ canvas, root, labels }) {
     }
 
     for (const record of seatObjects.values()) {
-      const speaking = record.speakingUntil > now;
+      const speaking = record.speakingHeld || record.speakingUntil > now;
       const answering = record.id === answerTurnSeat;
       const dead = record.state.alive === false;
       const selected = record.id === selectedSeat;
@@ -1195,7 +1535,7 @@ export function createArena({ canvas, root, labels }) {
     applyResultLighting(delta);
     updateResultBurst(now);
     updateEffects(now, delta);
-    updateLabels();
+    updateLabels(now);
   }
 
   function resize() {
@@ -1212,6 +1552,7 @@ export function createArena({ canvas, root, labels }) {
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      invalidateHud();   // every panel is sized off the viewport
     }
     return true;
   }
@@ -1328,6 +1669,8 @@ export function createArena({ canvas, root, labels }) {
     setAnswerTurn,
     setSeatAnswer,
     setSpeaking,
+    endSpeaking,
+    setVoiceLevel,
     setVoteTargets,
     setVoteHandler,
     setSelected,
