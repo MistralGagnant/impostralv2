@@ -290,8 +290,50 @@
     });
   }
 
-  // A full page reload always starts fresh on the home screen.
-  try { sessionStorage.removeItem("impostral.activeMatch"); } catch {}
+  // The HUD sends players to Stats, Leaderboard or About without leaving the
+  // game: the socket closes, but the server keeps holding the seat. Coming back
+  // ("Back to game") therefore resumes the match this tab remembers instead of
+  // dropping onto the home screen. A full reload stays the way out: it starts
+  // fresh, and it is the only way to leave a running game — there is no button.
+  const restorableMatch = pageWasReloaded() ? null : readStoredMatch();
+  if (!restorableMatch) {
+    try { sessionStorage.removeItem("impostral.activeMatch"); } catch {}
+  }
+
+  function pageWasReloaded() {
+    try {
+      const [entry] = performance.getEntriesByType("navigation");
+      // A HUD link reads as "navigate" and the Back button as "back_forward":
+      // both mean the player is coming back. Without the API, resume anyway —
+      // losing a running game costs more than an unwanted resume.
+      return entry?.type === "reload";
+    } catch {
+      return false;
+    }
+  }
+
+  function readStoredMatch() {
+    let raw = null;
+    try {
+      raw = sessionStorage.getItem("impostral.activeMatch");
+    } catch {
+      return null;
+    }
+    if (!raw) return null;
+    let match = null;
+    try {
+      match = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    if (!match || typeof match.room !== "string" || !match.room) return null;
+    // Without a reconnect secret the server never confirmed a seat: the
+    // reservation has expired since, so resuming would only be refused.
+    if (typeof match.reconnectToken !== "string" || !match.reconnectToken) {
+      return null;
+    }
+    return match;
+  }
 
   function saveCurrentMatch(match) {
     currentMatch = match;
@@ -858,6 +900,10 @@
       }
       if (!joinScreen.classList.contains("hidden")) {
         invalidateAdmission();
+        // The socket closed before the game screen ever opened: the remembered
+        // match is unusable (room gone, seat lost), so drop it instead of
+        // offering it again on the next return to the home screen.
+        saveCurrentMatch(null);
         S?.returnToLanding?.();
         resetSoundCues();
       }
@@ -2435,6 +2481,13 @@
     if (cls) b.className = cls;
     if (onClick) b.addEventListener("click", onClick);
     return b;
+  }
+
+  // Resume the game a HUD detour left behind. Last, so the whole module is
+  // wired by the time the first server frame lands.
+  if (restorableMatch) {
+    saveCurrentMatch(restorableMatch);
+    connect(restorableMatch, { reconnecting: true });
   }
 
   // System messages share the live feed with player utterances.

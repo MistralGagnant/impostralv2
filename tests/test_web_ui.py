@@ -9,7 +9,7 @@ from app.rooms import MAX_SEAT_NAME_LENGTH
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260730-v38"
+ASSET_VERSION = "20260730-v39"
 
 
 class WebUiTest(unittest.TestCase):
@@ -133,6 +133,25 @@ class WebUiTest(unittest.TestCase):
         longest = max(words, key=len)
         self.assertLessEqual(
             len(longest) + 3, MAX_SEAT_NAME_LENGTH, f"{longest} + 3 digits")
+
+    def test_back_to_game_returns_to_the_running_game(self) -> None:
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+
+        # The HUD links leave the page, so "Back to game" is a fresh load of
+        # "/": without reading the remembered match back, it lands on the home
+        # screen and the seat the server still holds becomes unreachable.
+        self.assertIn('sessionStorage.getItem("impostral.activeMatch")', app_js)
+        self.assertIn("const restorableMatch = pageWasReloaded()", app_js)
+        self.assertIn(
+            "connect(restorableMatch, { reconnecting: true });", app_js)
+        # A reload stays the way out of a running game.
+        self.assertIn('entry?.type === "reload"', app_js)
+        # A match without the seat secret would only be refused by the server.
+        self.assertIn(
+            'if (typeof match.reconnectToken !== "string" '
+            "|| !match.reconnectToken) {",
+            app_js,
+        )
 
     def test_about_page_links_every_author_and_the_repository(self) -> None:
         html = (ROOT / "web" / "about.html").read_text(encoding="utf-8")
