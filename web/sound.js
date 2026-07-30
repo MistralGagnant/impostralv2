@@ -15,11 +15,11 @@
   const STORAGE_KEY = "impostral.soundEnabled";
   const AudioContextType = window.AudioContext || window.webkitAudioContext;
   const MIN_GAIN = 0.0001;
-  const LANDING_MUSIC_LEVEL = 0.07;
-  const MUSIC_LEVEL = 0.12;
-  const INTRO_MUSIC_LEVEL = 0.16;
-  const RESULT_MUSIC_LEVEL = 0.14;
-  const DUCKED_MUSIC_LEVEL = 0.018;
+  const LANDING_MUSIC_LEVEL = 0.1;
+  const MUSIC_LEVEL = 0.175;
+  const INTRO_MUSIC_LEVEL = 0.23;
+  const RESULT_MUSIC_LEVEL = 0.2;
+  const DUCKED_MUSIC_LEVEL = 0.022;
   const SFX_LEVEL = 0.32;
   const DUCKED_SFX_LEVEL = 0.15;
   const STEP_SECONDS = 60 / 76 / 2;

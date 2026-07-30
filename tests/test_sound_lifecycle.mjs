@@ -231,7 +231,7 @@ test("landing ambience is gesture-started, lazy, quiet, and idempotent", async (
   assert.equal(sound.contextCount(), 1);
   assert.equal(await start, true);
   assert.equal(sound.intervals.size, 1);
-  assert.equal(sound.context().gains[1].gain.value, 0.07);
+  assert.equal(sound.context().gains[1].gain.value, 0.1);
   assert.ok(sound.context().sources.length >= 6);
 
   const sources = sound.context().sources.length;
@@ -265,14 +265,14 @@ test("landing, entry, and retry share one transport and crossfade levels", async
 
   sound.advance(0.4);
   assert.equal([...sound.intervals.keys()][0], schedulerId);
-  assert.equal(sound.context().gains[1].gain.value, 0.16);
+  assert.equal(sound.context().gains[1].gain.value, 0.23);
   assert.ok(sound.context().sources.length > landingSources + 2);
   assert.equal(sound.api.beginEntry(), false);
 
   assert.equal(sound.api.returnToLanding(), true);
   sound.advance(0.4);
   assert.equal([...sound.intervals.keys()][0], schedulerId);
-  assert.equal(sound.context().gains[1].gain.value, 0.07);
+  assert.equal(sound.context().gains[1].gain.value, 0.1);
   assert.equal(sound.api.beginEntry(), true);
 });
 
@@ -329,7 +329,7 @@ test("finite result scores distinguish human, agent, and draw outcomes", async (
 
     assert.equal(sound.api.playResult(outcome), true);
     assert.equal(sound.intervals.size, 1);
-    assert.equal(sound.context().gains[1].gain.value, 0.14);
+    assert.equal(sound.context().gains[1].gain.value, 0.2);
     const initialSources = sound.context().sources.length;
     assert.ok(initialSources >= 5);
 
@@ -377,15 +377,15 @@ test("result score ducks under narration and pauses for capture", async () => {
   sound.api.playResult("human");
   const musicGain = sound.context().gains[1].gain;
 
-  assert.equal(musicGain.value, 0.14);
+  assert.equal(musicGain.value, 0.2);
   await sound.windowTarget.dispatch("impostral:voice-start");
-  assert.equal(musicGain.value, 0.018);
+  assert.equal(musicGain.value, 0.022);
   await sound.windowTarget.dispatch("impostral:recording-start");
   assert.equal(musicGain.value, 0.0001);
   await sound.windowTarget.dispatch("impostral:recording-end");
-  assert.equal(musicGain.value, 0.018);
+  assert.equal(musicGain.value, 0.022);
   await sound.windowTarget.dispatch("impostral:voice-end");
-  assert.equal(musicGain.value, 0.14);
+  assert.equal(musicGain.value, 0.2);
 });
 
 test("muted or hidden result scores resume safely and never replay after completion", async () => {
@@ -438,9 +438,9 @@ test("voice ducking and microphone capture protect gameplay audio", async () => 
   const musicGain = audioContext.gains[1].gain;
   const sfxGain = audioContext.gains[2].gain;
 
-  assert.equal(musicGain.value, 0.12);
+  assert.equal(musicGain.value, 0.175);
   await sound.windowTarget.dispatch("impostral:voice-start");
-  assert.equal(musicGain.value, 0.018);
+  assert.equal(musicGain.value, 0.022);
   assert.equal(sfxGain.value, 0.15);
 
   await sound.windowTarget.dispatch("impostral:recording-start");
@@ -450,7 +450,7 @@ test("voice ducking and microphone capture protect gameplay audio", async () => 
   assert.equal(musicGain.value, 0.0001);
   assert.equal(sfxGain.value, 0.0001);
   await sound.windowTarget.dispatch("impostral:recording-end");
-  assert.equal(musicGain.value, 0.12);
+  assert.equal(musicGain.value, 0.175);
   assert.equal(sfxGain.value, 0.32);
 
   await sound.windowTarget.dispatch("impostral:voice-start");
@@ -458,10 +458,10 @@ test("voice ducking and microphone capture protect gameplay audio", async () => 
   assert.equal(musicGain.value, 0.0001);
   assert.equal(sfxGain.value, 0.0001);
   await sound.windowTarget.dispatch("impostral:recording-end");
-  assert.equal(musicGain.value, 0.018);
+  assert.equal(musicGain.value, 0.022);
   assert.equal(sfxGain.value, 0.15);
   await sound.windowTarget.dispatch("impostral:voice-end");
-  assert.equal(musicGain.value, 0.12);
+  assert.equal(musicGain.value, 0.175);
   assert.equal(sfxGain.value, 0.32);
 
   sound.api.setGameActive(false);
