@@ -16,6 +16,10 @@
       "nav.back": "Back to game",
       "nav.back_short": "Back",
       "meta.title_about": "Impostral • About us",
+      // Les pages Stats et Classement ne traduisent que la barre du HUD : leur
+      // corps reste anglais, mais leur titre doit survivre au passage d'i18n.
+      "meta.title_stats": "Impostral • Player stats",
+      "meta.title_leaderboard": "Impostral • Leaderboard",
       "about.title": "About us",
       "about.claim": "Impostral is the game that won us third place at the Mistral Vibe Hackathon 2026!",
       "about.image_alt": "Mistral Vibe Hackathon, July 18th 2026",
@@ -210,6 +214,8 @@
       "nav.back": "Retour au jeu",
       "nav.back_short": "Retour",
       "meta.title_about": "Impostral • À propos",
+      "meta.title_stats": "Impostral • Statistiques",
+      "meta.title_leaderboard": "Impostral • Classement",
       "about.title": "Qui sommes-nous",
       "about.claim": "Impostral est le jeu qui nous a fait décrocher la troisième place au hackathon Mistral Vibe 2026 !",
       "about.image_alt": "Hackathon Mistral Vibe, 18 juillet 2026",

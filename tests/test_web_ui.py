@@ -9,7 +9,7 @@ from app.rooms import MAX_SEAT_NAME_LENGTH
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260730-v39"
+ASSET_VERSION = "20260730-v40"
 
 
 class WebUiTest(unittest.TestCase):
@@ -91,6 +91,23 @@ class WebUiTest(unittest.TestCase):
         self.assertIn('data-i18n="nav.leaderboard_short"', index_html)
         self.assertIn('href="/leaderboard.html"', stats_html)
         self.assertIn('href="/stats.html"', board_html)
+
+    def test_the_header_speaks_the_players_language_on_every_page(self) -> None:
+        i18n = (ROOT / "web" / "i18n.js").read_text(encoding="utf-8")
+
+        for page, title_key in (("stats.html", "meta.title_stats"),
+                                ("leaderboard.html", "meta.title_leaderboard")):
+            html = (ROOT / "web" / page).read_text(encoding="utf-8")
+            # Those two pages render their body in English, but the HUD bar is
+            # the game's own: "Back to game" must read as the player chose.
+            self.assertIn('data-i18n="nav.back"', html, page)
+            self.assertIn('data-i18n="nav.back_short"', html, page)
+            self.assertIn("/static/i18n.js?v=", html, page)
+            # Translating a page that does not name its title key would hand it
+            # the landing's title.
+            self.assertIn(f'data-i18n-title="{title_key}"', html, page)
+            self.assertEqual(
+                i18n.count(f'"{title_key}":'), 2, f"{title_key} in EN and FR")
 
     def test_the_pseudonym_is_offered_before_the_private_lobby_panel(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

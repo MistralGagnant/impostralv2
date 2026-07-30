@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- `data-i18n-title` : la page annonce sa clé de titre, sinon i18n.js
+     lui poserait celui de la landing. -->
+<html lang="en" data-i18n-title="meta.title_stats">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -23,7 +25,7 @@
   <meta name="twitter:title" content="Impostral — Player stats" />
   <meta name="twitter:description" content="Compare human and Mistral AI win rate, survival, and voting accuracy." />
   <meta name="twitter:image" content="https://impostral.com/assets/logo.png" />
-  <link rel="stylesheet" href="/static/style.css?v=20260730-v39" />
+  <link rel="stylesheet" href="/static/style.css?v=20260730-v40" />
   <style>
     /* Metric series — the game's brand hues, validated for colorblind
        separation. Every bar also carries a text label and a printed value. */
@@ -251,13 +253,24 @@
 <body data-screen="page">
   <div class="app-shell">
     <header class="hud-header">
-      <a class="brand" href="/" aria-label="Impostral — home">
+      <a class="brand" href="/" aria-label="Impostral — home" data-i18n-aria-label="brand.home">
         <img src="/assets/impostral.png" alt="Impostral" />
       </a>
+      <!-- Comme sur la landing, les libellés longs ne tiennent pas sous 560 px :
+           les deux graphies vivent dans le DOM et le CSS choisit. -->
       <nav class="hud-nav">
-        <a href="/leaderboard.html">Leaderboard</a>
-        <a href="/about.html">About</a>
-        <a href="/">Back to game</a>
+        <a href="/leaderboard.html">
+          <span class="nav-label-full" data-i18n="nav.leaderboard">Leaderboard</span>
+          <span class="nav-label-short" data-i18n="nav.leaderboard_short">Ranks</span>
+        </a>
+        <a href="/about.html">
+          <span class="nav-label-full" data-i18n="nav.about">About us</span>
+          <span class="nav-label-short" data-i18n="nav.about_short">About</span>
+        </a>
+        <a href="/">
+          <span class="nav-label-full" data-i18n="nav.back">Back to game</span>
+          <span class="nav-label-short" data-i18n="nav.back_short">Back</span>
+        </a>
       </nav>
     </header>
 
@@ -286,6 +299,7 @@
     </main>
   </div>
 
-  <script src="/static/stats.js?v=20260730-v39" defer></script>
+  <script src="/static/i18n.js?v=20260730-v40"></script>
+  <script src="/static/stats.js?v=20260730-v40" defer></script>
 </body>
 </html>
