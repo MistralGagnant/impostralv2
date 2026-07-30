@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<!-- `data-i18n-title` : la page annonce sa clé de titre, sinon i18n.js
+     lui poserait celui de la landing. -->
+<html lang="en" data-i18n-title="meta.title_about">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0a08" />
+  <title>Impostral — About us</title>
+  <meta name="description" content="Impostral is the game that took third place at the Mistral Vibe Hackathon 2026. Meet the four people behind it, and suggest improvements on GitHub." />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <link rel="canonical" href="https://impostral.com/about.html" />
+  <link rel="icon" type="image/png" sizes="1024x1024" href="/assets/logo.png" />
+  <link rel="apple-touch-icon" href="/assets/logo.png" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Impostral" />
+  <meta property="og:title" content="Impostral — About us" />
+  <meta property="og:description" content="The game that took third place at the Mistral Vibe Hackathon 2026, and the four people behind it." />
+  <meta property="og:url" content="https://impostral.com/about.html" />
+  <meta property="og:image" content="https://impostral.com/assets/logo.png" />
+  <meta property="og:image:alt" content="Impostral's masked cat mascot" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Impostral — About us" />
+  <meta name="twitter:description" content="The game that took third place at the Mistral Vibe Hackathon 2026." />
+  <meta name="twitter:image" content="https://impostral.com/assets/logo.png" />
+  <link rel="stylesheet" href="/static/style.css?v=20260730-v38" />
+  <style>
+    body { overflow: auto; }
+
+    .stats-wrap { max-width: 1060px; }
+
+    /* --- Lede ------------------------------------------------------------- */
+    .ab-lede {
+      display: grid; gap: clamp(20px, 4vw, 48px); align-items: center;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.62fr);
+      margin-bottom: 34px;
+    }
+    /* Même titre que les autres pages du site (cf. `.stats-head h1`). */
+    .ab-lede h1 {
+      margin: 0 0 14px; font-family: var(--display); font-size: 1.7rem;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .ab-claim {
+      margin: 0; max-width: 40ch; color: var(--text);
+      font-size: clamp(0.86rem, 1.4vw, 1rem); line-height: 1.6;
+    }
+    .ab-figure { margin: 0; }
+    .ab-figure img {
+      display: block; width: 100%; height: auto;
+      border: 1px solid var(--line-soft);
+    }
+
+    /* --- Sections --------------------------------------------------------- */
+    .ab-section { margin-top: 30px; }
+    .ab-section-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 12px; padding-bottom: 10px; margin-bottom: 16px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .ab-section-title {
+      margin: 0; color: var(--orange); font-size: 0.8rem;
+      letter-spacing: 0.2em; text-transform: uppercase;
+    }
+
+    /* --- People ----------------------------------------------------------- */
+    .ab-people {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(226px, 1fr));
+    }
+    .ab-card {
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 16px 18px 18px;
+      background: var(--panel); border: 1px solid var(--line-soft);
+      border-left: 3px solid var(--orange);
+      color: inherit; text-decoration: none;
+      transition: border-color 150ms, background 150ms, transform 150ms;
+    }
+    .ab-card:hover, .ab-card:focus-visible {
+      border-color: var(--orange); background: var(--panel-strong);
+      transform: translateY(-2px);
+    }
+    .ab-card-name {
+      font-family: var(--display); font-size: 1.25rem; line-height: 1;
+      letter-spacing: 0.05em; text-transform: uppercase; color: var(--text);
+    }
+    .ab-card-url {
+      color: var(--orange-bright); font-family: var(--mono); font-size: 0.66rem;
+      overflow-wrap: anywhere;
+    }
+
+    /* --- Contribute ------------------------------------------------------- */
+    .ab-repo {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px;
+      padding: 18px 20px;
+      background: var(--panel); border: 1px solid var(--line-soft);
+      border-top: 2px solid var(--orange);
+    }
+    .ab-repo p { margin: 0; flex: 1 1 320px; color: var(--muted); font-size: 0.74rem; line-height: 1.6; }
+    /* `.btn` est taillé pour un `<button>` : sur une ancre, le texte se posait
+       en haut à gauche de la boîte au lieu d'en occuper le centre. */
+    .ab-repo a.btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 40px; padding: 0 20px;
+      font-size: 0.62rem; text-align: center; text-decoration: none;
+    }
+
+    @media (max-width: 860px) {
+      .ab-lede { grid-template-columns: 1fr; }
+      .ab-figure { order: -1; max-width: 420px; }
+    }
+  </style>
+</head>
+<!-- `data-screen="page"` : la barre du site reprend le gabarit plat de la
+     landing (cf. style.css). -->
+<body data-screen="page">
+  <div class="app-shell">
+    <header class="hud-header">
+      <a class="brand" href="/" aria-label="Impostral — home">
+        <img src="/assets/impostral.png" alt="Impostral" />
+      </a>
+      <nav class="hud-nav">
+        <a href="/leaderboard.html">
+          <span class="nav-label-full" data-i18n="nav.leaderboard">Leaderboard</span>
+          <span class="nav-label-short" data-i18n="nav.leaderboard_short">Ranks</span>
+        </a>
+        <a href="/stats.html" data-i18n="nav.stats">Stats</a>
+        <a href="/">
+          <span class="nav-label-full" data-i18n="nav.back">Back to game</span>
+          <span class="nav-label-short" data-i18n="nav.back_short">Back</span>
+        </a>
+      </nav>
+    </header>
+
+    <main class="stats-main">
+      <div class="stats-wrap">
+        <div class="ab-lede">
+          <div>
+            <h1 data-i18n="about.title">About us</h1>
+            <!-- Une seule clé, sans balise interne : `data-i18n` remplace le
+                 textContent, et découper la phrase en fragments figerait
+                 l'ordre des mots d'une langue sur l'autre. -->
+            <p class="ab-claim" data-i18n="about.claim">
+              Impostral is the game that won us third place at the Mistral Vibe
+              Hackathon 2026!
+            </p>
+          </div>
+          <figure class="ab-figure">
+            <img
+              src="/assets/mistral-vibe-hackathon.jpeg"
+              width="1080"
+              height="1080"
+              alt="Mistral Vibe Hackathon, July 18th 2026"
+              data-i18n-alt="about.image_alt"
+              decoding="async"
+            />
+          </figure>
+        </div>
+
+        <section class="ab-section">
+          <div class="ab-section-head">
+            <h2 class="ab-section-title" data-i18n="about.team_title">The team</h2>
+          </div>
+          <div class="ab-people">
+            <!-- Liens sortants : `rel="noopener"` systématique, et pas de
+                 `referrer` inutile vers des sites personnels. -->
+            <a class="ab-card" href="https://louenpottier.github.io/" target="_blank" rel="noopener noreferrer">
+              <span class="ab-card-name">Louen Pottier</span>
+              <span class="ab-card-url">louenpottier.github.io</span>
+            </a>
+            <a class="ab-card" href="https://louisguichard.fr/" target="_blank" rel="noopener noreferrer">
+              <span class="ab-card-name">Louis Guichard</span>
+              <span class="ab-card-url">louisguichard.fr</span>
+            </a>
+            <a class="ab-card" href="https://mathieuastruc.com/" target="_blank" rel="noopener noreferrer">
+              <span class="ab-card-name">Mathieu Astruc</span>
+              <span class="ab-card-url">mathieuastruc.com</span>
+            </a>
+            <a class="ab-card" href="https://www.linkedin.com/in/arthur-solere/" target="_blank" rel="noopener noreferrer">
+              <span class="ab-card-name">Arthur Solere</span>
+              <span class="ab-card-url">linkedin.com/in/arthur-solere</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="ab-section">
+          <div class="ab-section-head">
+            <h2 class="ab-section-title" data-i18n="about.contribute_title">Contribute</h2>
+          </div>
+          <div class="ab-repo">
+            <p data-i18n="about.contribute_body">
+              Ideas, bug reports, and improvements are welcome on the project
+              repository — open an issue or a pull request.
+            </p>
+            <a class="btn" href="https://github.com/MistralGagnant/impostralv2/" target="_blank" rel="noopener noreferrer" data-i18n="about.repo_link">
+              Project GitHub
+            </a>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/i18n.js?v=20260730-v38"></script>
+  <script src="/static/about.js?v=20260730-v38" defer></script>
+</body>
+</html>

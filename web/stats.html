@@ -23,7 +23,7 @@
   <meta name="twitter:title" content="Impostral — Player stats" />
   <meta name="twitter:description" content="Compare human and Mistral AI win rate, survival, and voting accuracy." />
   <meta name="twitter:image" content="https://impostral.com/assets/logo.png" />
-  <link rel="stylesheet" href="/static/style.css?v=20260730-v37" />
+  <link rel="stylesheet" href="/static/style.css?v=20260730-v38" />
   <style>
     /* Metric series — the game's brand hues, validated for colorblind
        separation. Every bar also carries a text label and a printed value. */
@@ -246,13 +246,17 @@
     }
   </style>
 </head>
-<body>
+<!-- `data-screen="page"` : la barre du site reprend le gabarit plat de la
+     landing (cf. style.css). -->
+<body data-screen="page">
   <div class="app-shell">
     <header class="hud-header">
       <a class="brand" href="/" aria-label="Impostral — home">
         <img src="/assets/impostral.png" alt="Impostral" />
       </a>
       <nav class="hud-nav">
+        <a href="/leaderboard.html">Leaderboard</a>
+        <a href="/about.html">About</a>
         <a href="/">Back to game</a>
       </nav>
     </header>
@@ -282,6 +286,6 @@
     </main>
   </div>
 
-  <script src="/static/stats.js?v=20260730-v37" defer></script>
+  <script src="/static/stats.js?v=20260730-v38" defer></script>
 </body>
 </html>

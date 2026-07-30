@@ -101,6 +101,47 @@
   const playerId = persistentId(localStorage, "impostral.playerId");
   const sessionId = persistentId(sessionStorage, "impostral.sessionId");
 
+  // ------------------------------------------------------------------
+  // Codename: the only name a player shows in public, and what the
+  // leaderboard ranks. A blank field would leave most players unranked, so a
+  // suggestion is drawn on the first visit and then left alone — only the
+  // player replaces it, and a field they deliberately emptied stays empty.
+  // ------------------------------------------------------------------
+  const CODENAME_KEY = "impostral.codename";
+  // Words that read the same in English and French, so a suggested codename
+  // never looks like it came from the other language. Five letters at most,
+  // leaving room for three digits inside the 8-character seat limit.
+  const CODENAME_WORDS = [
+    "Nova", "Echo", "Lynx", "Iris", "Onyx", "Zeta", "Kilo", "Volt", "Neon",
+    "Aria", "Juno", "Mica", "Rune", "Saga", "Vega", "Halo", "Kiwi", "Puma",
+    "Omega", "Delta", "Sigma", "Tango", "Pixel", "Turbo", "Cobra", "Radar",
+    "Solar", "Lunar", "Orbit", "Viper", "Karma", "Manga", "Robot", "Tigre",
+    "Zebra", "Piano", "Salsa", "Mango", "Opera", "Virus",
+  ];
+
+  function randomCodename() {
+    const word = CODENAME_WORDS[
+      Math.floor(Math.random() * CODENAME_WORDS.length)
+    ];
+    return word + String(Math.floor(Math.random() * 1000)).padStart(3, "0");
+  }
+
+  function readStoredCodename() {
+    // `null` means "never chosen" and triggers a suggestion; "" means the
+    // player wiped the field on purpose and wants to stay anonymous.
+    try {
+      return localStorage.getItem(CODENAME_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  function storeCodename(value) {
+    try {
+      localStorage.setItem(CODENAME_KEY, value);
+    } catch { /* Storage may be unavailable in private browsing modes. */ }
+  }
+
   // --- DOM elements ---
   const $ = (id) => document.getElementById(id);
   const joinScreen = $("join-screen");
@@ -180,7 +221,8 @@
       ) return;
       if (
         event.key === "Enter"
-        && ["name-input", "room-input"].includes(event.target?.id)
+        && ["name-input", "name-input-private", "room-input"]
+          .includes(event.target?.id)
       ) return;
     }
     if (event.target?.closest?.(
@@ -525,8 +567,41 @@
   playHardcoreBtn.addEventListener("click", () => play("hardcore"));
   joinBtn.addEventListener("click", () => enterRoom("standard"));
   joinHardcoreBtn.addEventListener("click", () => enterRoom("hardcore"));
+  // The landing offers the codename twice — top level for any game, and again
+  // inside the private lobby form. They are one value in two places: typing in
+  // either updates the other, so a player can never enter a private game under
+  // a name other than the one their ranking is built on.
+  const codenameInputs = [$("name-input"), $("name-input-private")]
+    .filter(Boolean);
+
+  function currentCodename() {
+    return (codenameInputs[0]?.value || "").trim();
+  }
+
+  function showCodename(value) {
+    for (const input of codenameInputs) input.value = value;
+  }
+
+  const storedCodename = readStoredCodename();
+  showCodename(storedCodename === null ? randomCodename() : storedCodename);
+  // A suggestion is only a suggestion until it is saved; saving it here is what
+  // keeps it stable across pages and reloads instead of redrawing every visit.
+  storeCodename(currentCodename());
+
+  for (const input of codenameInputs) {
+    input.addEventListener("input", () => {
+      showCodename(input.value);
+      storeCodename(input.value.trim());
+    });
+  }
+
   $("name-input").addEventListener("keydown", (event) => {
     if (event.key === "Enter") play("standard");
+  });
+  $("name-input-private")?.addEventListener("keydown", (event) => {
+    // Inside the private form, Enter means "enter this lobby", like the code
+    // field next to it — not "throw me into a public game".
+    if (event.key === "Enter") enterRoom("standard");
   });
   $("room-input").addEventListener("keydown", (event) => {
     if (event.key === "Enter") enterRoom("standard");
@@ -610,7 +685,7 @@
         body: JSON.stringify({
           player_id: playerId,
           session_id: sessionId,
-          name: ($("name-input").value || "").trim(),
+          name: currentCodename(),
           turnstile_token: turnstileToken,
           language,
           mode: ruleset,
@@ -623,7 +698,7 @@
         room: body.room_id,
         reservationToken: body.reservation_token,
         quick: true,
-        name: ($("name-input").value || "").trim(),
+        name: currentCodename(),
         language: body.language || language,
         mode: body.mode || ruleset,
       };
@@ -701,7 +776,7 @@
         room: body.name || room,
         reservationToken: body.reservation_token,
         quick: false,
-        name: ($("name-input").value || "").trim(),
+        name: currentCodename(),
         language: body.language || language,
         // Le serveur fait autorité : en rejoignant, c'est le salon qui décide.
         mode: body.mode || (creating ? ruleset : "standard"),

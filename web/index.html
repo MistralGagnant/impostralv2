@@ -56,7 +56,7 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=20260730-v37" />
+  <link rel="stylesheet" href="/static/style.css?v=20260730-v38" />
 </head>
 <body data-screen="join">
   <div class="app-shell">
@@ -88,7 +88,18 @@
           <span id="sound-toggle-label" data-i18n="nav.sound">Music + FX</span>
         </button>
         <button id="rules-btn" class="nav-btn" type="button" data-i18n="nav.rules">Rules</button>
+        <!-- Le libellé long ne tient pas dans le HUD sous 560 px, où la barre
+             est déjà pleine. Les deux graphies vivent dans le DOM et le CSS
+             choisit, comme pour l'étiquette du bouton son. -->
+        <a href="/leaderboard.html">
+          <span class="nav-label-full" data-i18n="nav.leaderboard">Leaderboard</span>
+          <span class="nav-label-short" data-i18n="nav.leaderboard_short">Ranks</span>
+        </a>
         <a href="/stats.html" data-i18n="nav.stats">Stats</a>
+        <a href="/about.html">
+          <span class="nav-label-full" data-i18n="nav.about">About</span>
+          <span class="nav-label-short" data-i18n="nav.about_short">About</span>
+        </a>
       </nav>
     </header>
 
@@ -134,6 +145,16 @@
                   ><b>FR</b><small>Français</small></button>
                 </div>
               </div>
+              <!-- Le pseudo vaut pour toute entrée en partie, publique comme
+                   privée : c'est lui qui donne droit au classement. Il vit donc
+                   au premier niveau, et non dans le panneau « salon privé » où
+                   un joueur du matchmaking public ne pensait pas à le chercher. -->
+              <label class="codename-field">
+                <span><span data-i18n="landing.codename">Pseudo</span> <small data-i18n="landing.codename_note">(optional, 8 characters)</small></span>
+                <!-- Le serveur retronque de toute façon à 8 (`MAX_SEAT_NAME_LENGTH`) :
+                     `maxlength` est là pour que le joueur voie sa limite en tapant. -->
+                <input id="name-input" type="text" maxlength="8" placeholder="anonymous" data-i18n-placeholder="landing.codename_placeholder" autocomplete="off" />
+              </label>
               <button id="play-btn" class="play-btn" type="button">
                 <span data-i18n="landing.enter">Enter a game</span>
                 <b aria-hidden="true">→</b>
@@ -156,9 +177,13 @@
               <details id="advanced-options" class="advanced-options">
                 <summary data-i18n="landing.private">Play with friends in a private room</summary>
                 <div class="advanced-grid">
+                  <!-- Même pseudo que celui du menu principal, à deux endroits :
+                       les deux champs sont tenus synchronisés par app.js, on ne
+                       peut donc pas entrer entre amis sous un autre nom que
+                       celui qui portera le classement. -->
                   <label class="codename-field">
-                    <span><span data-i18n="landing.codename">Pseudo</span> <small data-i18n="landing.codename_note">(optional)</small></span>
-                    <input id="name-input" type="text" placeholder="Leave blank to stay anonymous" data-i18n-placeholder="landing.codename_placeholder" autocomplete="off" />
+                    <span><span data-i18n="landing.codename">Pseudo</span> <small data-i18n="landing.codename_note">(optional, 8 characters)</small></span>
+                    <input id="name-input-private" type="text" maxlength="8" placeholder="anonymous" data-i18n-placeholder="landing.codename_placeholder" autocomplete="off" />
                   </label>
                   <div class="mode-switch" role="tablist" aria-label="Lobby mode" data-i18n-aria-label="landing.mode">
                     <button id="mode-create" type="button" role="tab" aria-selected="true" data-i18n="landing.create">Create lobby</button>
@@ -355,10 +380,10 @@
     </article>
   </dialog>
 
-  <script src="/static/i18n.js?v=20260730-v37"></script>
-  <script src="/static/audio.js?v=20260730-v37"></script>
-  <script src="/static/sound.js?v=20260730-v37"></script>
-  <script src="/static/arena3d-loader.js?v=20260730-v37"></script>
-  <script src="/static/app.js?v=20260730-v37"></script>
+  <script src="/static/i18n.js?v=20260730-v38"></script>
+  <script src="/static/audio.js?v=20260730-v38"></script>
+  <script src="/static/sound.js?v=20260730-v38"></script>
+  <script src="/static/arena3d-loader.js?v=20260730-v38"></script>
+  <script src="/static/app.js?v=20260730-v38"></script>
 </body>
 </html>

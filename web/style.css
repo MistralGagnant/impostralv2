@@ -98,6 +98,12 @@ button { cursor: pointer; }
   filter: none;
 }
 .hud-nav { display: flex; align-items: center; gap: 10px; }
+/* Nav labels with a narrow-screen spelling: the full one shows by default and
+   the short one takes over under 560 px (see the media query below). A wrapped
+   label stacked two lines high inside a one-line bar, so they never wrap —
+   the short spelling is what keeps them on one line. */
+.hud-nav a, .hud-nav .nav-btn { white-space: nowrap; }
+.nav-label-short { display: none; }
 .hud-nav a,
 .hud-nav .nav-btn,
 .sound-toggle {
@@ -632,7 +638,14 @@ input:focus, textarea:focus, select:focus {
    Join screen v2 — Mistral-inspired, minimal, pixel-first.
    Kept scoped to the join state so the in-game dark interface stays intact.
    -------------------------------------------------------------------------- */
-body[data-screen="join"] {
+/* Le gabarit plat de la landing est le style de barre de référence du site :
+   toutes les vues le partagent, variables comprises — les pages hors jeu
+   (`data-screen="page"` : classement, stats) et le HUD de partie. Ce dernier
+   reprend les liens et la police, mais garde son gabarit propre : c'est un
+   calque transparent posé sur l'arène, sans fond ni filet (cf. plus bas). */
+body[data-screen="join"],
+body[data-screen="page"],
+body[data-screen="game"] {
   --landing-bg: #0b0a08;
   --landing-surface: #151524;
   --landing-surface-raised: #242433;
@@ -640,18 +653,26 @@ body[data-screen="join"] {
   --landing-text-soft: #dcdcde;
   --landing-muted: #88889c;
   --landing-border: #343446;
+}
+body[data-screen="join"] {
   overflow: hidden;
   background: var(--landing-bg);
   color: var(--landing-text);
   font-family: Inter, Arial, Helvetica, sans-serif;
 }
-body[data-screen="join"] .hud-header {
+body[data-screen="join"] .hud-header,
+body[data-screen="page"] .hud-header {
   min-height: 70px;
   padding: 12px clamp(20px, 4vw, 64px);
   border-bottom: 1px solid var(--landing-border);
   background: var(--landing-bg);
 }
-body[data-screen="join"] .brand {
+/* Séparée du gabarit ci-dessus : le HUD de partie prend la police, pas le fond
+   ni le filet. Sans elle, la même barre se lirait en `--mono` hors landing. */
+.hud-header { font-family: Inter, Arial, Helvetica, sans-serif; }
+body[data-screen="join"] .brand,
+body[data-screen="page"] .brand,
+body[data-screen="game"] .brand {
   background: transparent;
   color: var(--landing-text);
 }
@@ -660,7 +681,12 @@ body[data-screen="join"] .brand {
    landing, y compris sur desktop. */
 body[data-screen="join"] .hud-nav a,
 body[data-screen="join"] .hud-nav .nav-btn,
-body[data-screen="join"] .sound-toggle {
+body[data-screen="join"] .sound-toggle,
+body[data-screen="page"] .hud-nav a,
+body[data-screen="page"] .hud-nav .nav-btn,
+body[data-screen="game"] .hud-nav a,
+body[data-screen="game"] .hud-nav .nav-btn,
+body[data-screen="game"] .sound-toggle {
   padding: 7px 0;
   border: 0;
   border-bottom: 1px solid transparent;
@@ -672,7 +698,12 @@ body[data-screen="join"] .sound-toggle {
 }
 body[data-screen="join"] .hud-nav a:hover,
 body[data-screen="join"] .hud-nav .nav-btn:hover,
-body[data-screen="join"] .sound-toggle:hover {
+body[data-screen="join"] .sound-toggle:hover,
+body[data-screen="page"] .hud-nav a:hover,
+body[data-screen="page"] .hud-nav .nav-btn:hover,
+body[data-screen="game"] .hud-nav a:hover,
+body[data-screen="game"] .hud-nav .nav-btn:hover,
+body[data-screen="game"] .sound-toggle:hover {
   border-bottom-color: var(--orange);
   background: transparent;
   color: var(--landing-text);
@@ -947,6 +978,23 @@ body[data-screen="join"] .advanced-grid {
 body[data-screen="join"] .advanced-grid .codename-field,
 body[data-screen="join"] .advanced-grid .mode-switch,
 body[data-screen="join"] .advanced-grid > button { grid-column: 1 / -1; }
+/* Le pseudo est au premier niveau de la console, sur la ligne du sélecteur de
+   langue qui le précède : libellé à gauche, champ court à droite (8 caractères
+   au plus, cf. `MAX_SEAT_NAME_LENGTH`). */
+body[data-screen="join"] .join-console > .codename-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+body[data-screen="join"] .join-console > .codename-field > span { margin: 0; }
+body[data-screen="join"] .join-console > .codename-field input {
+  width: 190px;
+  min-height: 44px;
+  padding: 5px 10px;
+  font-family: var(--mono);
+}
 body[data-screen="join"] .join-console label > span {
   color: var(--landing-text-soft);
   font-size: 0.58rem;
@@ -1906,11 +1954,19 @@ body[data-phase="game_over"] .question-frame { display: none; }
 }
 @media (max-width: 560px) {
   .hud-header { min-height: 56px; padding: 4px 16px 0; }
+  /* Le logo prenait 158 px d'une barre de 360 : sous 400 px il ne restait plus
+     la place du dernier lien, qui se faisait rogner. Il se cale maintenant sur
+     la largeur disponible, et la barre garde ses quatre entrées. */
+  .brand { width: clamp(108px, 30vw, 158px); }
+  .hud-nav { gap: 8px; }
   .hud-nav a,
   .hud-nav .nav-btn,
   .sound-toggle { padding: 6px 9px; font-size: 0.54rem; }
   .sound-toggle { min-width: 44px; min-height: 44px; justify-content: center; }
   #sound-toggle-label { display: none; }
+  .hud-nav a, .hud-nav .nav-btn { letter-spacing: 0.1em; }
+  .nav-label-full { display: none; }
+  .nav-label-short { display: inline; }
   .voice-gate {
     top: 64px;
     align-items: stretch;
@@ -1972,10 +2028,16 @@ body[data-phase="game_over"] .question-frame { display: none; }
   body[data-screen="join"] .hackathon-credit { margin-top: 28px; }
 }
 @media (max-width: 560px) {
-  body[data-screen="join"] .hud-header { padding: 7px 16px; }
+  body[data-screen="join"] .hud-header,
+  body[data-screen="page"] .hud-header { padding: 7px 16px; }
   body[data-screen="join"] .hud-nav a,
   body[data-screen="join"] .hud-nav .nav-btn,
-  body[data-screen="join"] .sound-toggle { font-size: 0.6rem; }
+  body[data-screen="join"] .sound-toggle,
+  body[data-screen="page"] .hud-nav a,
+  body[data-screen="page"] .hud-nav .nav-btn,
+  body[data-screen="game"] .hud-nav a,
+  body[data-screen="game"] .hud-nav .nav-btn,
+  body[data-screen="game"] .sound-toggle { font-size: 0.6rem; }
   body[data-screen="join"] .sound-toggle { padding: 6px; }
   body[data-screen="join"] .join-screen { padding: 32px 16px 20px; }
   body[data-screen="join"] .landing-copy h1 {
@@ -2565,9 +2627,6 @@ body[data-screen="game"] textarea:focus-visible {
 }
 
 @media (max-width: 560px) {
-  body[data-screen="game"] .hud-nav a,
-  body[data-screen="game"] .hud-nav .nav-btn,
-  body[data-screen="game"] .sound-toggle { padding: 6px 4px; }
   body[data-screen="game"] .arena-shell,
   body[data-screen="game"] .arena-viz {
     height: auto;

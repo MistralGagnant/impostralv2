@@ -317,6 +317,22 @@ async def stats_page() -> FileResponse:
     return FileResponse(str(WEB_DIR / "stats.html"))
 
 
+@app.get("/leaderboard")
+async def game_leaderboard() -> dict:
+    """Return games won per named human and per AI model, split by ruleset."""
+    return stats.leaderboard()
+
+
+@app.get("/leaderboard.html")
+async def leaderboard_page() -> FileResponse:
+    return FileResponse(str(WEB_DIR / "leaderboard.html"))
+
+
+@app.get("/about.html")
+async def about_page() -> FileResponse:
+    return FileResponse(str(WEB_DIR / "about.html"))
+
+
 @app.get("/audio/{clip_id}")
 async def audio(clip_id: str) -> Response:
     item = store.get(clip_id)

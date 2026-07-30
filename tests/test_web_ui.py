@@ -5,15 +5,18 @@ import re
 import unittest
 from pathlib import Path
 
+from app.rooms import MAX_SEAT_NAME_LENGTH
+
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260730-v37"
+ASSET_VERSION = "20260730-v38"
 
 
 class WebUiTest(unittest.TestCase):
     def test_static_assets_are_cache_busted(self) -> None:
         index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         stats_html = (ROOT / "web" / "stats.html").read_text(encoding="utf-8")
+        board_html = (ROOT / "web" / "leaderboard.html").read_text(encoding="utf-8")
         loader = (ROOT / "web" / "arena3d-loader.js").read_text(encoding="utf-8")
 
         index_assets = (
@@ -28,6 +31,11 @@ class WebUiTest(unittest.TestCase):
             self.assertIn(f"/static/{asset}?v={ASSET_VERSION}", index_html)
         self.assertIn(f"/static/style.css?v={ASSET_VERSION}", stats_html)
         self.assertIn(f"/static/stats.js?v={ASSET_VERSION}", stats_html)
+        self.assertIn(f"/static/style.css?v={ASSET_VERSION}", board_html)
+        self.assertIn(f"/static/leaderboard.js?v={ASSET_VERSION}", board_html)
+        about_html = (ROOT / "web" / "about.html").read_text(encoding="utf-8")
+        for asset in ("style.css", "i18n.js", "about.js"):
+            self.assertIn(f"/static/{asset}?v={ASSET_VERSION}", about_html)
         self.assertIn(f"/static/arena3d.js?v={ASSET_VERSION}", loader)
 
     def test_home_page_has_search_and_social_metadata(self) -> None:
@@ -55,12 +63,135 @@ class WebUiTest(unittest.TestCase):
         self.assertIn("Sitemap: https://impostral.com/sitemap.xml", robots)
         self.assertIn("<loc>https://impostral.com/</loc>", sitemap)
         self.assertIn("<loc>https://impostral.com/stats.html</loc>", sitemap)
+        self.assertIn("<loc>https://impostral.com/leaderboard.html</loc>", sitemap)
+
+    def test_every_page_wears_the_landing_header(self) -> None:
+        css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
+
+        for page in ("stats.html", "leaderboard.html", "about.html"):
+            html = (ROOT / "web" / page).read_text(encoding="utf-8")
+            self.assertIn('<body data-screen="page">', html, page)
+
+        # The flat header is shared, not duplicated: each landing rule that
+        # draws it carries the page selector alongside.
+        for rule in ('body[data-screen="page"] .hud-header',
+                     'body[data-screen="page"] .hud-nav a',
+                     'body[data-screen="page"] .hud-nav a:hover',
+                     'body[data-screen="page"] .brand'):
+            self.assertIn(rule, css)
+
+    def test_leaderboard_is_reachable_from_the_header_of_every_page(self) -> None:
+        index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        stats_html = (ROOT / "web" / "stats.html").read_text(encoding="utf-8")
+        board_html = (ROOT / "web" / "leaderboard.html").read_text(encoding="utf-8")
+
+        self.assertIn('href="/leaderboard.html"', index_html)
+        self.assertIn('data-i18n="nav.leaderboard"', index_html)
+        # The narrow-screen spelling exists too: the HUD nav is full at 560 px.
+        self.assertIn('data-i18n="nav.leaderboard_short"', index_html)
+        self.assertIn('href="/leaderboard.html"', stats_html)
+        self.assertIn('href="/stats.html"', board_html)
+
+    def test_the_pseudonym_is_offered_before_the_private_lobby_panel(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+
+        # It gates the leaderboard and applies to public matchmaking too, so it
+        # must not sit inside the "play with friends" panel a public player
+        # never opens.
+        self.assertLess(
+            html.index('id="name-input"'),
+            html.index('<details id="advanced-options"'),
+        )
+
+    def test_the_codename_is_one_value_shown_in_two_places(self) -> None:
+        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn(
+            f'id="name-input-private" type="text" maxlength="{MAX_SEAT_NAME_LENGTH}"',
+            html,
+        )
+        # Every entry path reads the shared value, never one of the two fields:
+        # entering a private game under a different name than the ranked one is
+        # exactly what the second field would otherwise allow.
+        self.assertNotIn('$("name-input").value', app_js)
+        self.assertGreaterEqual(app_js.count("name: currentCodename(),"), 3)
+        # The suggestion is saved on first sight, or it would be redrawn on
+        # every page load instead of following the player around the site.
+        self.assertIn("storeCodename(currentCodename());", app_js)
+
+    def test_a_suggested_codename_always_fits_the_seat_limit(self) -> None:
+        app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+
+        words = re.search(
+            r"const CODENAME_WORDS = \[(.*?)\];", app_js, re.S).group(1)
+        words = re.findall(r'"([^"]+)"', words)
+
+        self.assertTrue(words)
+        # `input.value` set from script ignores `maxlength`, so an over-long
+        # word would show a name the server then truncates to something else.
+        longest = max(words, key=len)
+        self.assertLessEqual(
+            len(longest) + 3, MAX_SEAT_NAME_LENGTH, f"{longest} + 3 digits")
+
+    def test_about_page_links_every_author_and_the_repository(self) -> None:
+        html = (ROOT / "web" / "about.html").read_text(encoding="utf-8")
+        main = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
+        sitemap = (ROOT / "web" / "sitemap.xml").read_text(encoding="utf-8")
+        image = ROOT / "assets" / "mistral-vibe-hackathon.jpeg"
+
+        for url in (
+            "https://louenpottier.github.io/",
+            "https://louisguichard.fr/",
+            "https://mathieuastruc.com/",
+            "https://www.linkedin.com/in/arthur-solere/",
+            "https://github.com/MistralGagnant/impostralv2/",
+        ):
+            self.assertIn(f'href="{url}"', html)
+        # Outbound links open elsewhere, so they must not hand the opener over.
+        self.assertEqual(
+            html.count('target="_blank" rel="noopener noreferrer"'),
+            html.count('target="_blank"'),
+        )
+        self.assertTrue(image.is_file())
+        self.assertIn('src="/assets/mistral-vibe-hackathon.jpeg"', html)
+        self.assertIn('@app.get("/about.html")', main)
+        self.assertIn("<loc>https://impostral.com/about.html</loc>", sitemap)
+
+        # Names are shuffled client-side: no position on that page is a rank.
+        about_js = (ROOT / "web" / "about.js").read_text(encoding="utf-8")
+        self.assertIn("Math.random()", about_js)
+        self.assertIn(".ab-people", about_js)
+
+        index_html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('href="/about.html"', index_html)
+        # The French label does not fit the mobile bar; a short spelling does.
+        self.assertIn('data-i18n="nav.about_short"', index_html)
+
+    def test_about_page_is_translated_without_stealing_the_landing_title(self) -> None:
+        html = (ROOT / "web" / "about.html").read_text(encoding="utf-8")
+        i18n = (ROOT / "web" / "i18n.js").read_text(encoding="utf-8")
+
+        # `apply()` sets document.title, so a page that does not name its own
+        # key would silently wear the landing's title.
+        self.assertIn('data-i18n-title="meta.title_about"', html)
+        self.assertIn("dataset?.i18nTitle", i18n)
+        for key in ("about.title", "about.claim", "about.team_title",
+                    "about.repo_link"):
+            self.assertIn(f'data-i18n="{key}"', html)
+        self.assertIn('data-i18n-alt="about.image_alt"', html)
+        for key in ("meta.title_about", "about.claim", "about.repo_link",
+                    "nav.back"):
+            self.assertEqual(
+                i18n.count(f'"{key}":'), 2, f"{key} must exist in EN and FR")
 
     def test_codename_is_explicitly_optional(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
 
         self.assertIn('data-i18n="landing.codename">Pseudo', html)
-        self.assertIn('data-i18n="landing.codename_note">(optional)', html)
+        self.assertIn('data-i18n="landing.codename_note">(optional, 8 characters)', html)
+        # The input states the same bound the seat enforces server-side.
+        self.assertIn(f'id="name-input" type="text" maxlength="{MAX_SEAT_NAME_LENGTH}"', html)
         self.assertNotIn('id="name-input" required', html)
 
     def test_lobby_code_is_generated_and_required_when_joining(self) -> None:

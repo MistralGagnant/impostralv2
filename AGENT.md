@@ -217,9 +217,9 @@ rotated on the seat's rank among the room's agents through
 Each finished game appends a JSON record to `IMPOSTRAL_STATS_PATH` (default
 `data/results.jsonl`). `app/game/stats.py` records each model's win, survival,
 elimination round, on-target vote rate, and whether the seat was
-disqualified for voting a human out. Humans are recorded too, but
-grouped anonymously into a single `Humans` bucket (never per pseudonym), so the
-dashboard compares humans against each AI model. Each record also carries its
+disqualified for voting a human out. Humans are recorded too, and the model
+comparison still groups them into a single `Humans` bucket, so the dashboard
+compares humans against each AI model. Each record also carries its
 `mode` and `ruleset`. `/stats` exposes the combined aggregates plus the same
 shape per ruleset under `modes`, and `/stats.html` renders a Standard/Hardcore
 tab pair, because an agent rewarded for eliminating humans is not comparable to
@@ -245,6 +245,85 @@ the `modes` breakdown instead of inflating the standard bucket. Older records
 only carry `votes_correct`, always meaning "voted an AI" — still the right
 reading everywhere except for a hardcore agent, whose ballots are therefore
 reported as having no target history rather than counted backwards.
+
+## Site header
+
+`body[data-screen]` selects the header treatment, and the landing's flat bar is
+now the whole site's: no borders, no uppercase, an orange underline on hover,
+and Inter throughout, so the same bar never reads in two typefaces across
+pages. `join` and `page` (stats, leaderboard, about) also share its frame —
+full-width background and bottom rule — while `game` takes only the links and
+the face: its header is a transparent layer over the arena, with its own
+gradient and `pointer-events` handling, so giving it that frame would paint a
+band across the 3D scene. The rules are written once with every selector rather
+than copied per page; `test_web_ui.py` checks each page carries
+`data-screen="page"` and that every header rule still names it.
+
+Nav labels have a narrow-screen spelling (`.nav-label-full` / `.nav-label-short`
+swapped at 560 px) because the bar is one line and a wrapped label stacks it two
+high: "Leaderboard" becomes "Ranks", French "À propos" becomes "Infos". Under
+560 px the logo also gives way (`clamp(108px, 30vw, 158px)`) — at its desktop
+width it ate half a 360 px bar and clipped the last link.
+
+## About page
+
+`/about.html` is bilingual like the landing, unlike the two dashboards: it loads
+`i18n.js` and tags its copy with `data-i18n`. Two mechanisms exist for it.
+`apply()` sets `document.title`, so a translated page must name its own key
+through `<html data-i18n-title="…">` or it wears the landing's title; and
+`data-i18n-alt` translates an image `alt`, which `aria-label` cannot stand in
+for. The page title and the nav label are deliberately different strings in
+French ("Qui sommes-nous" against "À propos"), so they are separate keys.
+
+`about.js` shuffles the four author cards on every load — no position on that
+page is a ranking. The HTML order is the no-JavaScript fallback.
+
+## Leaderboard
+
+Each human record also carries the pseudonym typed on the landing, cleaned by
+`stats._clean_name` (printable characters only, whitespace collapsed, and no
+longer than `rooms.MAX_SEAT_NAME_LENGTH` — 8 characters, the single source of
+that bound, applied on write and again on read) and empty for anyone who left
+the field blank. `/leaderboard`
+reads the same log the other way round from `/stats`: one row per contestant —
+a named human or an AI model — ranked by games won, with the same
+`modes` split per ruleset, and `/leaderboard.html` renders it.
+
+Three rules make that board honest about what it can and cannot know:
+
+- Pseudonyms group case- and spacing-insensitively (`Ada`, `  aDa `), and the
+  most recent spelling is the one displayed.
+- A seat played without a pseudonym is not attributable to anyone, so it is
+  never ranked. Those appearances are counted separately and stated under the
+  board instead of collapsing into a shared "Anonymous" player.
+- The pseudonym is free-form and unverified — nothing stops two people from
+  claiming the same one. The page says so; do not build anything on it that
+  needs an actual identity.
+- Too long is truncated, never rejected: `Room.attach` trims to
+  `MAX_SEAT_NAME_LENGTH` and the landing input carries the same `maxlength`, so
+  an oversized codename costs a player characters, never their seat.
+- The field sits at the top level of the landing console, right under the
+  language picker — not inside the "Play with friends in a private room" panel,
+  where it used to live. It applies to every entry, public matchmaking
+  included, and a public player never opens that panel. `test_web_ui.py` pins
+  that ordering, because the field is easy to file back under "advanced". The
+  private lobby form shows the same codename again (`#name-input-private`);
+  `app.js` keeps both fields on one value, and every entry path reads
+  `currentCodename()` rather than either field.
+- The landing suggests a codename on the first visit (`randomCodename`: a
+  bilingual-neutral word plus three digits, saved under `impostral.codename`)
+  and then leaves it alone. Reloads, page changes, and later visits reuse the
+  stored value; only the player replaces it, and a field they emptied on
+  purpose stays empty — `""` is a choice, a missing key is not. Setting
+  `input.value` from script ignores `maxlength`, so the word list is bounded to
+  `MAX_SEAT_NAME_LENGTH - 3` characters and a test enforces it: a longer
+  suggestion would display a name the server then truncates to another one.
+  Suggested names collide by design (~40 000 combinations, and two players
+  drawing the same one share a leaderboard row) — the codename identifies a
+  player no more strongly than it did before.
+
+The model comparison on `/stats` is unaffected: it keeps folding every human
+into the anonymous `Humans` bucket, whatever pseudonym the record carries.
 
 ## `mistralai` SDK version caveat
 
@@ -304,14 +383,14 @@ seats.
 | `app/game/state_machine.py` | Phase engine, timing protection, and win conditions. |
 | `app/game/events.py` | WebSocket message schemas; active roles are never exposed. |
 | `app/game/questions.py` | Curated TRACE-to-ALIBI question director and local-demo answers. |
-| `app/game/stats.py` | Per-game records and per-model performance aggregation. |
+| `app/game/stats.py` | Per-game records, per-model aggregation, and the games-won leaderboard. |
 | `app/agents/llm_agent.py` | Structured LLM answers, votes, personas, few-shots, and mock fallback. |
 | `app/agents/contracts.py` | Immutable public view and versioned autonomous-player protocol. |
 | `app/agents/registry.py` | Trusted local provider registry and native Mistral factory. |
 | `app/audio/stt.py` / `tts.py` | Voxtral wrappers with graceful fallback. |
 | `app/audio/voices.py` | Cached preset voice pool, room language first. |
 | `app/audio/store.py` | Ephemeral FIFO audio store served from `/audio/{id}`. |
-| `web/` | 3D arena, adaptive Web Audio, model statistics dashboard, phase UI, and the header **Rules** dialog: a minimal panel giving the round loop, then what winning means under each ruleset side by side. Both are always shown, since the landing does not yet know the room's mode. |
+| `web/` | 3D arena, adaptive Web Audio, model statistics dashboard, games-won leaderboard, about page, phase UI, and the header **Rules** dialog: a minimal panel giving the round loop, then what winning means under each ruleset side by side. Both are always shown, since the landing does not yet know the room's mode. |
 
 Phones and small screens run the 2D arena, where the seats are a scrolling card
 grid taller than the viewport. The question is therefore stuck to the top of

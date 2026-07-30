@@ -9,6 +9,20 @@
       "nav.sound": "Music + FX",
       "nav.sound_off": "Music + FX off",
       "nav.stats": "Stats",
+      "nav.leaderboard": "Leaderboard",
+      "nav.leaderboard_short": "Ranks",
+      "nav.about": "About us",
+      "nav.about_short": "About",
+      "nav.back": "Back to game",
+      "nav.back_short": "Back",
+      "meta.title_about": "Impostral • About us",
+      "about.title": "About us",
+      "about.claim": "Impostral is the game that won us third place at the Mistral Vibe Hackathon 2026!",
+      "about.image_alt": "Mistral Vibe Hackathon, July 18th 2026",
+      "about.team_title": "The team",
+      "about.contribute_title": "Contribute",
+      "about.contribute_body": "Ideas, bug reports, and improvements are welcome on the project repository — open an issue or a pull request.",
+      "about.repo_link": "Project GitHub",
       "nav.rules": "Rules",
       "rules.title": "Rules",
       "rules.close": "Close the rules",
@@ -36,8 +50,8 @@
       "landing.hardcore_note": "Hardcore: an AI only wins if it survives and takes at least one human down with it. They will hunt you, and they know it.",
       "landing.private": "Play with friends in a private room",
       "landing.codename": "Pseudo",
-      "landing.codename_note": "(optional)",
-      "landing.codename_placeholder": "Leave blank to stay anonymous",
+      "landing.codename_note": "(optional, 8 characters)",
+      "landing.codename_placeholder": "anonymous",
       "landing.mode": "Lobby mode",
       "landing.create": "Create lobby",
       "landing.join": "Join lobby",
@@ -189,6 +203,20 @@
       "nav.sound": "Musique + FX",
       "nav.sound_off": "Musique + FX coupés",
       "nav.stats": "Stats",
+      "nav.leaderboard": "Classement",
+      "nav.leaderboard_short": "Rangs",
+      "nav.about": "À propos",
+      "nav.about_short": "Infos",
+      "nav.back": "Retour au jeu",
+      "nav.back_short": "Retour",
+      "meta.title_about": "Impostral • À propos",
+      "about.title": "Qui sommes-nous",
+      "about.claim": "Impostral est le jeu qui nous a fait décrocher la troisième place au hackathon Mistral Vibe 2026 !",
+      "about.image_alt": "Hackathon Mistral Vibe, 18 juillet 2026",
+      "about.team_title": "L'équipe",
+      "about.contribute_title": "Contribuer",
+      "about.contribute_body": "Idées, bugs et améliorations sont les bienvenus sur le dépôt du projet : ouvrez une issue ou une pull request.",
+      "about.repo_link": "GitHub du projet",
       "nav.rules": "Règles",
       "rules.title": "Règles",
       "rules.close": "Fermer les règles",
@@ -216,8 +244,8 @@
       "landing.hardcore_note": "Hardcore : une IA ne gagne que si elle survit en ayant fait éliminer au moins un humain. Elles ont donc intérêt à vous éliminer, et elles le savent.",
       "landing.private": "Jouer entre amis dans un salon privé",
       "landing.codename": "Pseudo",
-      "landing.codename_note": "(facultatif)",
-      "landing.codename_placeholder": "Laissez vide pour rester anonyme",
+      "landing.codename_note": "(facultatif, 8 caractères)",
+      "landing.codename_placeholder": "anonyme",
       "landing.mode": "Mode du salon",
       "landing.create": "Créer un salon",
       "landing.join": "Rejoindre",
@@ -411,7 +439,11 @@
 
   function apply(root = document) {
     document.documentElement.lang = language;
-    document.title = t("meta.title");
+    // Chaque page annonce sa clé de titre (`<html data-i18n-title="…">`) ;
+    // sans cela, toute page traduite hériterait du titre de la landing.
+    document.title = t(
+      document.documentElement?.dataset?.i18nTitle || "meta.title"
+    );
     root.querySelectorAll?.("[data-i18n]").forEach((node) => {
       node.textContent = t(node.dataset.i18n);
     });
@@ -420,6 +452,9 @@
     });
     root.querySelectorAll?.("[data-i18n-aria-label]").forEach((node) => {
       node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel));
+    });
+    root.querySelectorAll?.("[data-i18n-alt]").forEach((node) => {
+      node.setAttribute("alt", t(node.dataset.i18nAlt));
     });
   }
 

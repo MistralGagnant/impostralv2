@@ -25,6 +25,12 @@ from .modes import DEFAULT_MODE, is_hardcore, normalize_mode
 
 log = logging.getLogger("impostral.rooms")
 
+# Pseudonyms are short by design: they label a leaderboard row, never a seat in
+# the arena, and a long one would push the AI models out of the ranking layout.
+# Anything longer is truncated rather than rejected, so an oversized value can
+# never cost a player their seat. `game/stats.py` reads this same value.
+MAX_SEAT_NAME_LENGTH = 8
+
 
 @dataclass
 class Seat:
@@ -351,7 +357,7 @@ class Room:
             self.detach(previous_ws)
 
         seat.connected = True
-        seat.name = name[:80]
+        seat.name = name.strip()[:MAX_SEAT_NAME_LENGTH]
         seat.player_id = player_id
         seat.session_id = session_id
         seat.claimed = True
