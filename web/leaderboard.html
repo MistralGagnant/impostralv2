@@ -7,7 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0b0a08" />
   <title>Impostral — Leaderboard</title>
-  <meta name="description" content="Games won in Impostral by each named human player and each Mistral AI model, ranked separately for the Standard and Hardcore rulesets." />
+  <meta name="description" content="Games won in Impostral by each named human player, ranked separately for the Standard and Hardcore rulesets." />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <link rel="canonical" href="https://impostral.com/leaderboard.html" />
   <link rel="icon" type="image/png" sizes="1024x1024" href="/assets/logo.png" />
@@ -16,21 +16,19 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Impostral" />
   <meta property="og:title" content="Impostral — Leaderboard" />
-  <meta property="og:description" content="Who has won the most games: named human players and Mistral AI models, Standard and Hardcore." />
+  <meta property="og:description" content="Who has won the most games against the AI seats: named human players, Standard and Hardcore." />
   <meta property="og:url" content="https://impostral.com/leaderboard.html" />
   <meta property="og:image" content="https://impostral.com/assets/logo.png" />
   <meta property="og:image:alt" content="Impostral's masked cat mascot" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Impostral — Leaderboard" />
-  <meta name="twitter:description" content="Games won by each human player and each Mistral AI model." />
+  <meta name="twitter:description" content="Games won by each named human player of Impostral." />
   <meta name="twitter:image" content="https://impostral.com/assets/logo.png" />
-  <link rel="stylesheet" href="/static/style.css?v=20260730-v40" />
+  <link rel="stylesheet" href="/static/style.css?v=20260731-v41" />
   <style>
-    /* Two families of contestant, two hues, both validated for colorblind
-       separation against the panel. Neither carries meaning alone: every row
-       also prints its kind as a text badge and its win count as a number. */
-    :root { --m-human: #ff8205; --m-ai: #e87ba4; }
+    /* One family of contestant here: the players. The models are benchmarked
+       on /stats, so nothing on this page has to tell two kinds apart. */
     body { overflow: auto; }
 
     .stats-wrap { max-width: 1060px; }
@@ -106,11 +104,7 @@
       display: grid; align-items: center; gap: 14px;
       grid-template-columns: 46px minmax(0, 1fr) minmax(120px, 240px) 74px;
       padding: 12px 16px;
-      background: var(--panel); border: 1px solid var(--line-soft);
-      border-left: 3px solid var(--faint);
-    }
-    .lb-row.is-human {
-      border-left-color: var(--orange);
+      border: 1px solid var(--line-soft); border-left: 3px solid var(--orange);
       background:
         linear-gradient(90deg, rgba(255, 130, 5, 0.09), rgba(255, 130, 5, 0) 40%),
         var(--panel);
@@ -127,22 +121,13 @@
     }
     .lb-id { min-width: 0; }
     .lb-name {
-      font-family: var(--mono); font-size: 0.92rem; font-weight: 700;
+      font-family: var(--display); font-size: 1.15rem; font-weight: 700;
+      letter-spacing: 0.05em; text-transform: uppercase;
       color: var(--text); overflow-wrap: anywhere;
-    }
-    .lb-row.is-human .lb-name {
-      font-family: var(--display); font-size: 1.15rem; letter-spacing: 0.05em;
-      text-transform: uppercase;
     }
     .lb-id-meta {
       display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px;
     }
-    .lb-kind {
-      padding: 2px 7px; color: var(--muted); font-size: 0.54rem;
-      letter-spacing: 0.14em; text-transform: uppercase;
-      border: 1px solid var(--line-soft);
-    }
-    .lb-kind-human { color: #180900; background: var(--orange); border-color: var(--orange); }
     .lb-played { color: var(--faint); font-size: 0.64rem; font-variant-numeric: tabular-nums; }
 
     /* Wins bar: length is the win count against the board leader, so the
@@ -153,7 +138,6 @@
       border-radius: 0 4px 4px 0;
       transition: width 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    .lb-row:not(.is-human) .lb-fill { background: var(--m-ai); }
     .lb-wins { text-align: right; }
     .lb-wins-num {
       display: block; font-family: var(--display); font-size: 1.5rem; line-height: 1;
@@ -176,16 +160,14 @@
       font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
       background: var(--panel-strong);
     }
-    /* Rank, player, and kind read as identity, not as figures. */
-    .lb-table th:nth-child(-n + 3), .lb-table td:nth-child(-n + 3) { text-align: left; }
+    /* Rank and player read as identity, not as figures. */
+    .lb-table th:nth-child(-n + 2), .lb-table td:nth-child(-n + 2) { text-align: left; }
     .lb-table tbody td { font-variant-numeric: tabular-nums; color: var(--text); }
     .lb-table .lb-cell-name {
-      color: var(--muted); font-family: var(--mono); white-space: normal;
-      overflow-wrap: anywhere;
+      color: var(--orange-bright); font-family: var(--mono); font-weight: 700;
+      white-space: normal; overflow-wrap: anywhere;
     }
     .lb-table tbody tr:last-child td { border-bottom: none; }
-    .lb-table tbody tr.is-human td { background: rgba(255, 130, 5, 0.06); }
-    .lb-table tbody tr.is-human .lb-cell-name { color: var(--orange-bright); font-weight: 700; }
 
     /* --- States & footer -------------------------------------------------- */
     .lb-empty {
@@ -239,26 +221,36 @@
             <span class="stats-kicker">Hall of fame // games won</span>
             <h1>Leaderboard</h1>
             <p class="stats-sub">
-              Every contestant ranked by games won: human players who entered a
-              pseudo, and each Mistral model behind the AI seats.
+              Every player who entered a pseudo, ranked by games won. The
+              Mistral models behind the AI seats are benchmarked on the stats
+              page.
             </p>
           </div>
           <button class="btn" id="refresh" type="button"
             style="min-height:36px; padding:0 16px; font-size:0.62rem;">Refresh</button>
         </div>
-        <!-- Les deux règlements ne récompensent pas la même chose : une victoire
-             hardcore se gagne en survivant à ceux qu'on a fait sortir. Classements
-             séparés, jamais fusionnés. -->
-        <div id="mode-tabs" class="lb-tabs" role="tablist" aria-label="Ruleset">
-          <button type="button" role="tab" aria-selected="true" data-mode="standard">Standard</button>
-          <button type="button" role="tab" aria-selected="false" data-mode="hardcore">Hardcore</button>
+        <div class="board-controls">
+          <!-- Les deux tableaux sont les deux moitiés d'une même question :
+               ici les joueurs, là les modèles. La bascule est donc posée à
+               côté du sélecteur de règlement, pas dans la barre du HUD. -->
+          <nav class="page-switch" aria-label="Boards">
+            <a href="/stats.html" data-i18n="nav.stats">Stats</a>
+            <a href="/leaderboard.html" aria-current="page" data-i18n="nav.leaderboard">Leaderboard</a>
+          </nav>
+          <!-- Les deux règlements ne récompensent pas la même chose : une victoire
+               hardcore se gagne en survivant à ceux qu'on a fait sortir. Classements
+               séparés, jamais fusionnés. -->
+          <div id="mode-tabs" class="lb-tabs" role="tablist" aria-label="Ruleset">
+            <button type="button" role="tab" aria-selected="true" data-mode="standard">Standard</button>
+            <button type="button" role="tab" aria-selected="false" data-mode="hardcore">Hardcore</button>
+          </div>
         </div>
         <div id="content"></div>
       </div>
     </main>
   </div>
 
-  <script src="/static/i18n.js?v=20260730-v40"></script>
-  <script src="/static/leaderboard.js?v=20260730-v40" defer></script>
+  <script src="/static/i18n.js?v=20260731-v41"></script>
+  <script src="/static/leaderboard.js?v=20260731-v41" defer></script>
 </body>
 </html>

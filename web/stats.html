@@ -25,7 +25,7 @@
   <meta name="twitter:title" content="Impostral — Player stats" />
   <meta name="twitter:description" content="Compare human and Mistral AI win rate, survival, and voting accuracy." />
   <meta name="twitter:image" content="https://impostral.com/assets/logo.png" />
-  <link rel="stylesheet" href="/static/style.css?v=20260730-v40" />
+  <link rel="stylesheet" href="/static/style.css?v=20260731-v41" />
   <style>
     /* Metric series — the game's brand hues, validated for colorblind
        separation. Every bar also carries a text label and a printed value. */
@@ -288,18 +288,27 @@
           <button class="btn" id="refresh" type="button"
             style="min-height:36px; padding:0 16px; font-size:0.62rem;">Refresh</button>
         </div>
-        <!-- Les deux règlements ne sont pas comparables : une IA hardcore
-             chasse les humains. Les chiffres sont donc séparés. -->
-        <div id="mode-tabs" class="st-tabs" role="tablist" aria-label="Ruleset">
-          <button type="button" role="tab" aria-selected="true" data-mode="standard">Standard</button>
-          <button type="button" role="tab" aria-selected="false" data-mode="hardcore">Hardcore</button>
+        <div class="board-controls">
+          <!-- Les deux tableaux sont les deux moitiés d'une même question :
+               ici les modèles, là les joueurs. La bascule est donc posée à
+               côté du sélecteur de règlement, pas dans la barre du HUD. -->
+          <nav class="page-switch" aria-label="Boards">
+            <a href="/stats.html" aria-current="page" data-i18n="nav.stats">Stats</a>
+            <a href="/leaderboard.html" data-i18n="nav.leaderboard">Leaderboard</a>
+          </nav>
+          <!-- Les deux règlements ne sont pas comparables : une IA hardcore
+               chasse les humains. Les chiffres sont donc séparés. -->
+          <div id="mode-tabs" class="st-tabs" role="tablist" aria-label="Ruleset">
+            <button type="button" role="tab" aria-selected="true" data-mode="standard">Standard</button>
+            <button type="button" role="tab" aria-selected="false" data-mode="hardcore">Hardcore</button>
+          </div>
         </div>
         <div id="content"></div>
       </div>
     </main>
   </div>
 
-  <script src="/static/i18n.js?v=20260730-v40"></script>
-  <script src="/static/stats.js?v=20260730-v40" defer></script>
+  <script src="/static/i18n.js?v=20260731-v41"></script>
+  <script src="/static/stats.js?v=20260731-v41" defer></script>
 </body>
 </html>

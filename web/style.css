@@ -1921,6 +1921,34 @@ body[data-phase="game_over"] .question-frame { display: none; }
 .stats-wrap { max-width: 900px; margin: 0 auto; }
 .stats-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin: 6px 0 18px; }
 .stats-head h1 { margin: 0; font-family: var(--display); font-size: 1.7rem; letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* Les deux tableaux lisent le même journal de parties et se répondent : on
+   passe de l'un à l'autre ici, à côté du sélecteur de règlement, plutôt que de
+   remonter dans la barre du HUD. La rangée est partagée par les deux pages,
+   d'où sa place ici et non dans leur `<style>` respectif. */
+.board-controls {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 10px clamp(14px, 3vw, 28px); margin-bottom: 18px;
+}
+/* Les onglets de règlement gardent leur propre marge quand ils sont seuls. */
+.board-controls > [class$="-tabs"] { margin-bottom: 0; }
+.page-switch { display: inline-flex; border: 1px solid var(--orange-dim); }
+.page-switch a {
+  display: inline-flex; align-items: center; min-height: 34px; padding: 0 18px;
+  color: var(--muted); font-family: var(--mono); font-size: 0.62rem;
+  letter-spacing: 0.16em; text-transform: uppercase; text-decoration: none;
+}
+.page-switch a + a { border-left: 1px solid var(--line); }
+/* La page courante est le repère, la sienne : c'est l'autre qui doit appeler
+   le clic, donc c'est elle qui porte la couleur. */
+.page-switch a[aria-current="page"] {
+  color: var(--text); background: rgba(255, 130, 5, 0.14);
+}
+.page-switch a:not([aria-current="page"]) { color: var(--orange-bright); }
+.page-switch a:not([aria-current="page"]):hover,
+.page-switch a:not([aria-current="page"]):focus-visible {
+  color: #180900; background: var(--orange);
+}
 /* The stats-content design lives in web/stats.html (st-* classes). */
 
 /* --------------------------------------------------------------------------

@@ -9,7 +9,7 @@ from app.rooms import MAX_SEAT_NAME_LENGTH
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSET_VERSION = "20260730-v40"
+ASSET_VERSION = "20260731-v41"
 
 
 class WebUiTest(unittest.TestCase):
@@ -91,6 +91,40 @@ class WebUiTest(unittest.TestCase):
         self.assertIn('data-i18n="nav.leaderboard_short"', index_html)
         self.assertIn('href="/leaderboard.html"', stats_html)
         self.assertIn('href="/stats.html"', board_html)
+
+    def test_the_two_boards_switch_to_each_other_next_to_the_rulesets(self) -> None:
+        css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
+
+        # The switch is the pair's own control, not a HUD link: it sits in the
+        # same row as the ruleset tabs, and each page marks itself current.
+        self.assertIn(".page-switch", css)
+        self.assertIn(".board-controls", css)
+        for page, own, other in (("stats.html", "/stats.html", "/leaderboard.html"),
+                                 ("leaderboard.html", "/leaderboard.html", "/stats.html")):
+            html = (ROOT / "web" / page).read_text(encoding="utf-8")
+            switch = html[html.index('<nav class="page-switch"'):]
+            switch = switch[:switch.index("</nav>")]
+            self.assertIn(f'href="{own}" aria-current="page"', switch, page)
+            self.assertIn(f'href="{other}"', switch, page)
+            self.assertNotIn(f'href="{other}" aria-current', switch, page)
+            # One row: the page switch and the ruleset tabs, side by side.
+            controls = html[html.index('<div class="board-controls">'):]
+            self.assertLess(controls.index('class="page-switch"'),
+                            controls.index('id="mode-tabs"'), page)
+
+    def test_the_leaderboard_ranks_players_only(self) -> None:
+        board_js = (ROOT / "web" / "leaderboard.js").read_text(encoding="utf-8")
+
+        # The endpoint still ranks the AI models — they belong to the model
+        # benchmark on /stats, so the page drops them instead.
+        self.assertIn('.filter((e) => e.kind === "human")', board_js)
+        # With one kind of contestant left, the kind column and its badge only
+        # printed "Human" on every single row.
+        headers = re.search(r"for \(const header of \[(.*?)\]\)", board_js, re.S)
+        self.assertNotIn("Kind", headers.group(1))
+        self.assertNotIn('"lb-kind', board_js)
+        self.assertNotIn("lb-kind", (ROOT / "web" / "leaderboard.html")
+                         .read_text(encoding="utf-8"))
 
     def test_the_header_speaks_the_players_language_on_every_page(self) -> None:
         i18n = (ROOT / "web" / "i18n.js").read_text(encoding="utf-8")
